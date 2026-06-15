@@ -918,7 +918,7 @@ onMounted(async () => {
 .modal-enter-from, .modal-leave-to { opacity: 0; }
 
 .drop-zone {
-  min-height: 400px;
+  min-height: calc(100vh - 8rem);
   border: 2px dashed transparent;
   border-radius: 0.75rem;
   transition: border-color 0.15s ease, background-color 0.15s ease;
