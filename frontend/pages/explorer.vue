@@ -88,7 +88,7 @@
                 <span class="file-col-size">{{ file.is_folder ? '--' : formatSize(file.size_total) }}</span>
                 <span class="file-col-date">{{ formatDate(file.updated_at) }}</span>
                 <div class="file-col-actions">
-                  <button class="icon-btn" @click="deleteFile(file.id)" title="Delete">
+                  <button class="icon-btn" @click="confirmDelete(file)" title="Delete">
                     <Trash2 :size="14" />
                   </button>
                   <button v-if="!file.is_folder" class="icon-btn" @click="downloadFile(file.id)" title="Download">
@@ -101,6 +101,22 @@
         </template>
       </div>
     </div>
+
+    <Transition name="modal">
+      <div v-if="showDeleteConfirm && deleteTarget" class="modal-overlay" @click.self="cancelDelete">
+        <div class="modal-card">
+          <div class="modal-icon">
+            <AlertTriangle :size="24" style="color: var(--color-danger);" />
+          </div>
+          <h3 class="modal-title">Delete {{ deleteTarget.isFolder ? 'folder' : 'file' }}?</h3>
+          <p class="modal-desc">"{{ deleteTarget.name }}" will be permanently deleted{{ deleteTarget.isFolder ? ' along with all its contents' : '' }}. This action cannot be undone.</p>
+          <div class="modal-actions">
+            <button class="btn-secondary" @click="cancelDelete" style="height: 2.25rem;">Cancel</button>
+            <button class="btn-danger" @click="executeDelete" style="height: 2.25rem;">Delete</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
 
     <Transition name="upload-panel">
       <div v-if="uploads.length" class="upload-panel">
@@ -146,11 +162,13 @@
 </template>
 
 <script setup lang="ts">
-import { FolderOpen, FolderPlus, Upload, Folder, File, Trash2, Download, ChevronRight, Home, Loader2, X } from 'lucide-vue-next'
+import { FolderOpen, FolderPlus, Upload, Folder, File, Trash2, Download, ChevronRight, Home, Loader2, X, AlertTriangle } from 'lucide-vue-next'
 
 definePageMeta({ layout: false })
 
 const { apiFetch } = useApi()
+const route = useRoute()
+const router = useRouter()
 
 const files = ref<any[]>([])
 const loading = ref(true)
@@ -160,6 +178,9 @@ const showNewFolder = ref(false)
 const newFolderName = ref('')
 const isDragging = ref(false)
 let dragCounter = 0
+
+const showDeleteConfirm = ref(false)
+const deleteTarget = ref<{ id: number; name: string; isFolder: boolean } | null>(null)
 
 const dragEnter = () => {
   dragCounter++
@@ -225,12 +246,25 @@ const loadFiles = async () => {
   }
 }
 
-const navigateToFolder = (id: number | null) => {
-  currentFolder.value = id
-  if (id === null) {
+const loadBreadcrumbs = async (folderId: number | null) => {
+  if (!folderId) { breadcrumbs.value = []; return }
+  try {
+    const data = await apiFetch(`/api/files/breadcrumb?folder_id=${folderId}`) as any[]
+    breadcrumbs.value = data || []
+  } catch {
     breadcrumbs.value = []
   }
-  loadFiles()
+}
+
+const navigateToFolder = async (id: number | null) => {
+  currentFolder.value = id
+  if (id) {
+    router.replace({ query: { folder: String(id) } })
+  } else {
+    router.replace({ query: {} })
+  }
+  await loadBreadcrumbs(id)
+  await loadFiles()
 }
 
 const createFolder = async () => {
@@ -246,11 +280,24 @@ const createFolder = async () => {
   } catch {}
 }
 
-const deleteFile = async (id: number) => {
+const confirmDelete = (file: any) => {
+  deleteTarget.value = { id: file.id, name: file.name, isFolder: file.is_folder }
+  showDeleteConfirm.value = true
+}
+
+const cancelDelete = () => {
+  showDeleteConfirm.value = false
+  deleteTarget.value = null
+}
+
+const executeDelete = async () => {
+  if (!deleteTarget.value) return
   try {
-    await apiFetch(`/api/files/${id}`, { method: 'DELETE' })
+    await apiFetch(`/api/files/${deleteTarget.value.id}`, { method: 'DELETE' })
     await loadFiles()
   } catch {}
+  showDeleteConfirm.value = false
+  deleteTarget.value = null
 }
 
 const downloadFile = async (id: number) => {
@@ -406,11 +453,25 @@ const clearCompletedUploads = () => {
   uploads.value = uploads.value.filter(u => u.status === 'uploading' || u.status === 'queued')
 }
 
-onMounted(() => {
+const handlePopState = () => {
+  const folderParam = route.query.folder
+  const folderId = folderParam ? Number(folderParam) : null
+  currentFolder.value = folderId
+  loadBreadcrumbs(folderId)
+  loadFiles()
+}
+
+onMounted(async () => {
   if (import.meta.client) {
     if (!localStorage.getItem('token')) { navigateTo('/login'); return }
   }
-  loadFiles()
+  const folderParam = route.query.folder
+  if (folderParam) {
+    currentFolder.value = Number(folderParam)
+    await loadBreadcrumbs(currentFolder.value)
+  }
+  await loadFiles()
+  window.addEventListener('popstate', handlePopState)
 })
 </script>
 
@@ -634,6 +695,73 @@ onMounted(() => {
   color: var(--color-text-primary);
   background-color: var(--color-surface-2);
 }
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.modal-card {
+  background-color: var(--color-surface-0);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  width: 400px;
+  max-width: 90vw;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.16);
+}
+
+.modal-icon {
+  margin-bottom: 0.75rem;
+}
+
+.modal-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0 0 0.5rem 0;
+}
+
+.modal-desc {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  margin: 0 0 1.25rem 0;
+  line-height: 1.5;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.btn-danger {
+  background-color: var(--color-danger);
+  color: #fff;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  font-size: 0.8125rem;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: opacity 0.12s ease;
+}
+
+.btn-danger:hover {
+  opacity: 0.9;
+}
+
+.modal-enter-active { transition: opacity 0.15s ease; }
+.modal-leave-active { transition: opacity 0.1s ease; }
+.modal-enter-from, .modal-leave-to { opacity: 0; }
 
 .drop-zone {
   min-height: 400px;

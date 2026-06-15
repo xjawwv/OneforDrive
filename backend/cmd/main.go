@@ -58,13 +58,14 @@ func main() {
 	files := r.Group("/api/files")
 	files.Use(middleware.AuthMiddleware(jwtSecret))
 	{
+		files.GET("/breadcrumb", fileH.GetBreadcrumb)
 		files.GET("", fileH.GetFiles)
 		files.POST("/upload", fileH.UploadFile)
+		files.POST("/folder", fileH.CreateFolder)
 		files.GET("/:id/download", fileH.DownloadFile)
 		files.DELETE("/:id", fileH.DeleteFile)
 		files.GET("/:id/info", fileH.FileInfo)
 		files.GET("/:id/progress", fileH.UploadProgress)
-		files.POST("/folder", fileH.CreateFolder)
 	}
 
 	port := getEnv("PORT", "8080")

@@ -242,6 +242,44 @@ func (h *FileHandler) UploadProgress(c *gin.Context) {
 	})
 }
 
+func (h *FileHandler) GetBreadcrumb(c *gin.Context) {
+	userID := c.GetInt64("user_id")
+	folderID := c.Query("folder_id")
+	if folderID == "" || folderID == "null" {
+		c.JSON(http.StatusOK, []interface{}{})
+		return
+	}
+
+	type crumb struct {
+		ID   int64  `json:"id"`
+		Name string `json:"name"`
+	}
+
+	var crumbs []crumb
+	currentID := folderID
+
+	for currentID != "" && currentID != "null" {
+		var id int64
+		var name string
+		var parentID sql.NullInt64
+		err := h.DB.QueryRow(
+			"SELECT id, name, parent_id FROM files WHERE id = ? AND user_id = ? AND is_folder = TRUE",
+			currentID, userID,
+		).Scan(&id, &name, &parentID)
+		if err != nil {
+			break
+		}
+		crumbs = append([]crumb{{ID: id, Name: name}}, crumbs...)
+		if parentID.Valid {
+			currentID = strconv.FormatInt(parentID.Int64, 10)
+		} else {
+			break
+		}
+	}
+
+	c.JSON(http.StatusOK, crumbs)
+}
+
 func (h *FileHandler) CreateFolder(c *gin.Context) {
 	userID := c.GetInt64("user_id")
 	var req struct {
