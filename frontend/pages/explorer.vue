@@ -91,7 +91,7 @@
                   <button class="icon-btn" @click="confirmDelete(file)" title="Delete">
                     <Trash2 :size="14" />
                   </button>
-                  <button v-if="!file.is_folder" class="icon-btn" @click="downloadFile(file.id)" title="Download">
+                  <button v-if="!file.is_folder" class="icon-btn" @click="downloadFile(file)" title="Download">
                     <Download :size="14" />
                   </button>
                 </div>
@@ -300,8 +300,8 @@ const executeDelete = async () => {
   deleteTarget.value = null
 }
 
-const downloadFile = async (id: number) => {
-  router.push(`/download/${id}`)
+const downloadFile = async (file: any) => {
+  router.push(`/download/${encodeURIComponent(file.name)}`)
 }
 
 const uploadFile = (file: File) => {

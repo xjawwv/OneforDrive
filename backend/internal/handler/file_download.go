@@ -50,6 +50,82 @@ func generateSessionID() string {
 	return hex.EncodeToString(h[:16])
 }
 
+func (h *FileHandler) StartDownloadByName(c *gin.Context) {
+	userID := c.GetInt64("user_id")
+	var req struct {
+		Name string `json:"name" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "filename required"})
+		return
+	}
+
+	var f struct {
+		ID        int64
+		Name      string
+		MimeType  string
+		SizeTotal int64
+	}
+	err := h.DB.QueryRow(
+		"SELECT id, name, mime_type, size_total FROM files WHERE name = ? AND user_id = ? AND is_folder = FALSE",
+		req.Name, userID,
+	).Scan(&f.ID, &f.Name, &f.MimeType, &f.SizeTotal)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
+		return
+	}
+
+	rows, err := h.DB.Query(
+		"SELECT chunk_index, drive_file_id, account_id, chunk_size FROM file_chunks WHERE file_id = ? ORDER BY chunk_index ASC",
+		f.ID,
+	)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "no chunks found"})
+		return
+	}
+	defer rows.Close()
+
+	var chunks []downloadChunkInfo
+	for rows.Next() {
+		var c downloadChunkInfo
+		if err := rows.Scan(&c.Index, &c.DriveFileID, &c.AccountID, &c.ChunkSize); err == nil {
+			chunks = append(chunks, c)
+		}
+	}
+
+	if len(chunks) == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "no chunks found"})
+		return
+	}
+
+	sessionID := generateSessionID()
+	tmpDir := filepath.Join(os.TempDir(), "routestorage_downloads")
+	os.MkdirAll(tmpDir, 0755)
+	tmpFile := filepath.Join(tmpDir, sessionID)
+
+	sess := &downloadSession{
+		ID:          sessionID,
+		FileID:      f.ID,
+		FileName:    f.Name,
+		FileType:    f.MimeType,
+		TotalSize:   f.SizeTotal,
+		Status:      "downloading",
+		ChunksTotal: len(chunks),
+		FilePath:    tmpFile,
+		CreatedAt:   time.Now(),
+	}
+	downloadSessions.Store(sessionID, sess)
+
+	go h.processDownload(sess, chunks)
+
+	c.JSON(http.StatusCreated, gin.H{
+		"session_id": sessionID,
+		"file_name":  f.Name,
+		"file_size":  f.SizeTotal,
+		"chunks":     len(chunks),
+	})
+}
+
 func (h *FileHandler) StartDownload(c *gin.Context) {
 	userID := c.GetInt64("user_id")
 	id := c.Param("id")

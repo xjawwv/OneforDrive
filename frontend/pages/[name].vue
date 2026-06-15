@@ -76,9 +76,18 @@ onMounted(async () => {
     if (!localStorage.getItem('token')) { navigateTo('/login'); return }
   }
 
-  const fileId = route.params.id as string
+  const fileNameParam = decodeURIComponent(route.params.name as string)
+  if (!fileNameParam) {
+    status.value = 'error'
+    errorMsg.value = 'No file specified'
+    return
+  }
+
   try {
-    const resp = await apiFetch(`/api/files/${fileId}/download`, { method: 'POST' }) as any
+    const resp = await apiFetch('/api/files/download-by-name', {
+      method: 'POST',
+      body: { name: fileNameParam }
+    }) as any
     sessionId.value = resp.session_id
     fileName.value = resp.file_name
     fileSize.value = resp.file_size
@@ -87,7 +96,7 @@ onMounted(async () => {
     pollProgress()
   } catch (e: any) {
     status.value = 'error'
-    errorMsg.value = e?.data?.error || 'Failed to start download'
+    errorMsg.value = e?.data?.error || 'File not found or access denied'
   }
 })
 
@@ -97,7 +106,7 @@ const pollProgress = async () => {
 
   const poll = async () => {
     try {
-      const resp = await fetch(`${apiBase}/api/files/${route.params.id}/download-progress?session=${sessionId.value}`, {
+      const resp = await fetch(`${apiBase}/api/files/0/download-progress?session=${sessionId.value}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       if (!resp.ok) return
@@ -109,14 +118,19 @@ const pollProgress = async () => {
 
       if (data.status === 'ready') {
         status.value = 'ready'
-        const fileResp = await fetch(`${apiBase}/api/files/${route.params.id}/download`, {
-          headers: { Authorization: `Bearer ${token}` }
+        const fileResp = await fetch(`${apiBase}/api/files/download-by-name`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ name: fileName.value })
         })
         if (fileResp.ok) {
           const blob = await fileResp.blob()
           const disposition = fileResp.headers.get('Content-Disposition') || ''
           const nameMatch = disposition.match(/filename="?([^"]+)"?/)
-          const filename = nameMatch ? nameMatch[1] : fileName.value || 'download'
+          const filename = nameMatch ? nameMatch[1] : fileName.value
           const url = URL.createObjectURL(blob)
           const a = document.createElement('a')
           a.href = url
