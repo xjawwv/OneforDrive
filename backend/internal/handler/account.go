@@ -119,12 +119,12 @@ func (h *AccountHandler) OAuthCallback(c *gin.Context) {
 		return
 	}
 
-	capacityTotal, capacityUsed, _ := service.GetDriveCapacity(tokenRes.AccessToken)
-
 	routeStorageFolderID, err := service.CreateRouteStorageFolder(tokenRes.AccessToken)
 	if err != nil {
 		log.Printf("Failed to create RouteStorage folder: %v", err)
 	}
+
+	capacityTotal, capacityUsed, _ := service.GetDriveCapacity(tokenRes.AccessToken)
 
 	var expiryTime *time.Time
 	if tokenRes.ExpiresIn > 0 {
@@ -144,6 +144,30 @@ func (h *AccountHandler) OAuthCallback(c *gin.Context) {
 	}
 
 	c.Redirect(http.StatusTemporaryRedirect, frontendURL+"/settings?connected=1")
+
+	if routeStorageFolderID != "" {
+		go func() {
+			knownIDs := make(map[string]bool)
+			rows, _ := h.DB.Query("SELECT drive_file_id FROM file_chunks WHERE account_id IN (SELECT id FROM drive_accounts WHERE user_id = ? AND is_active = TRUE)", stateUserID)
+			if rows != nil {
+				defer rows.Close()
+				for rows.Next() {
+					var id string
+					if rows.Scan(&id) == nil {
+						knownIDs[id] = true
+					}
+				}
+			}
+			deleted, syncErr := service.SyncOrphanedFiles(tokenRes.AccessToken, routeStorageFolderID, knownIDs)
+			if syncErr != nil {
+				log.Printf("Sync failed for user %d: %v", stateUserID, syncErr)
+			} else if deleted > 0 {
+				log.Printf("Cleaned %d orphaned files for user %d", deleted, stateUserID)
+				capTotal, capUsed, _ := service.GetDriveCapacity(tokenRes.AccessToken)
+				h.DB.Exec("UPDATE drive_accounts SET capacity_total = ?, capacity_used = ? WHERE user_id = ? AND is_active = TRUE", capTotal, capUsed, stateUserID)
+			}
+		}()
+	}
 }
 
 func (h *AccountHandler) DeleteAccount(c *gin.Context) {

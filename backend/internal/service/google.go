@@ -377,6 +377,65 @@ func findRouteStorageFolder(accessToken string) (string, error) {
 	return "", fmt.Errorf("not found")
 }
 
+func SyncOrphanedFiles(accessToken string, folderID string, knownDriveFileIDs map[string]bool) (int, error) {
+	if folderID == "" {
+		return 0, nil
+	}
+
+	var deleted int
+	var pageToken string
+
+	for {
+		query := fmt.Sprintf("'%s' in parents and trashed = false", folderID)
+		if pageToken != "" {
+			query += fmt.Sprintf("&pageToken=%s", pageToken)
+		}
+		reqURL := fmt.Sprintf("https://www.googleapis.com/drive/v3/files?q=%s&fields=nextPageToken,files(id,name)", url.QueryEscape(query))
+		req, err := http.NewRequest("GET", reqURL, nil)
+		if err != nil {
+			return deleted, err
+		}
+		req.Header.Set("Authorization", "Bearer "+accessToken)
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return deleted, err
+		}
+		defer resp.Body.Close()
+
+		body, _ := io.ReadAll(resp.Body)
+		var result struct {
+			NextPageToken string `json:"nextPageToken"`
+			Files         []struct {
+				ID   string `json:"id"`
+				Name string `json:"name"`
+			} `json:"files"`
+		}
+		json.Unmarshal(body, &result)
+
+		for _, f := range result.Files {
+			if !knownDriveFileIDs[f.ID] {
+				delReq, _ := http.NewRequest("DELETE", fmt.Sprintf("https://www.googleapis.com/drive/v3/files/%s", f.ID), nil)
+				delReq.Header.Set("Authorization", "Bearer "+accessToken)
+				delResp, err := http.DefaultClient.Do(delReq)
+				if err == nil {
+					delResp.Body.Close()
+					if delResp.StatusCode == 204 || delResp.StatusCode == 200 {
+						deleted++
+					}
+				}
+			}
+		}
+
+		pageToken = result.NextPageToken
+		if pageToken == "" {
+			break
+		}
+	}
+
+	return deleted, nil
+}
+
 func getEnv(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
