@@ -160,7 +160,7 @@
     </Transition>
 
     <Transition name="upload-panel">
-      <div v-if="activeDownloads.length" class="upload-panel" style="bottom: 5rem;">
+      <div v-if="activeDownloads.length" class="download-panel">
         <div class="upload-panel-header">
           <div style="display: flex; align-items: center; gap: 0.5rem;">
             <Download :size="14" style="color: var(--color-brand-500);" />
@@ -896,6 +896,19 @@ onMounted(async () => {
   position: fixed;
   bottom: 1.5rem;
   right: 1.5rem;
+  width: 360px;
+  background-color: var(--color-surface-0);
+  border: 1px solid var(--color-surface-3);
+  border-radius: 0.75rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  z-index: 100;
+  overflow: hidden;
+}
+
+.download-panel {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 1.5rem;
   width: 360px;
   background-color: var(--color-surface-0);
   border: 1px solid var(--color-surface-3);
