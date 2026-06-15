@@ -70,6 +70,7 @@ func main() {
 		files.POST("/:id/download", fileH.StartDownload)
 		files.POST("/download-by-name", fileH.StartDownloadByName)
 		files.GET("/:id/download-progress", fileH.DownloadProgress)
+		files.DELETE("/download-cancel", fileH.CancelDownload)
 		files.DELETE("/:id", fileH.DeleteFile)
 		files.GET("/:id/info", fileH.FileInfo)
 		files.GET("/:id/progress", fileH.UploadProgress)

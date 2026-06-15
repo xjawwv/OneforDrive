@@ -143,18 +143,22 @@
                   <span v-if="upload.status === 'uploading'">{{ upload.percent }}% - {{ formatSize(upload.loaded) }} of {{ formatSize(upload.total) }}</span>
                   <span v-else-if="upload.status === 'done'" style="color: var(--color-success);">Done</span>
                   <span v-else-if="upload.status === 'error'" style="color: var(--color-danger);">Failed</span>
+                  <span v-else-if="upload.status === 'cancelled'" style="color: var(--color-text-muted);">Cancelled</span>
                   <span v-else-if="upload.status === 'queued'" style="color: var(--color-text-muted);">Waiting...</span>
                 </div>
                 <div class="upload-item-progress">
                   <div class="upload-item-progress-track">
                     <div
                       class="upload-item-progress-fill"
-                      :class="{ 'fill-error': upload.status === 'error', 'fill-done': upload.status === 'done' }"
+                      :class="{ 'fill-error': upload.status === 'error' || upload.status === 'cancelled', 'fill-done': upload.status === 'done' }"
                       :style="{ width: upload.percent + '%' }"
                     ></div>
                   </div>
                 </div>
               </div>
+              <button v-if="upload.status === 'uploading'" class="cancel-btn" @click="cancelUpload(upload)" title="Cancel">
+                <X :size="14" />
+              </button>
             </div>
           </div>
         </div>
@@ -184,17 +188,21 @@
                   <span v-if="dl.status === 'downloading'">{{ dl.progress }}% - {{ dl.chunksDone }} / {{ dl.chunksTotal }} chunks</span>
                   <span v-else-if="dl.status === 'done'" style="color: var(--color-success);">Done</span>
                   <span v-else-if="dl.status === 'error'" style="color: var(--color-danger);">Failed</span>
+                  <span v-else-if="dl.status === 'cancelled'" style="color: var(--color-text-muted);">Cancelled</span>
                 </div>
                 <div class="upload-item-progress">
                   <div class="upload-item-progress-track">
                     <div
                       class="upload-item-progress-fill"
-                      :class="{ 'fill-error': dl.status === 'error', 'fill-done': dl.status === 'done' }"
+                      :class="{ 'fill-error': dl.status === 'error' || dl.status === 'cancelled', 'fill-done': dl.status === 'done' }"
                       :style="{ width: dl.progress + '%' }"
                     ></div>
                   </div>
                 </div>
               </div>
+              <button v-if="dl.status === 'downloading'" class="cancel-btn" @click="cancelDownload(dl)" title="Cancel">
+                <X :size="14" />
+              </button>
             </div>
           </div>
         </div>
@@ -376,6 +384,7 @@ const pollDownloadProgress = async (idx: number, fileName: string) => {
 
   const poll = async () => {
     try {
+      if (activeDownloads.value[idx]?._aborted) return
       const sessId = activeDownloads.value[idx]?.sessionId
       if (!sessId) return
       const resp = await fetch(`${apiBase}/api/files/0/download-progress?session=${sessId}`, {
@@ -419,7 +428,9 @@ const pollDownloadProgress = async (idx: number, fileName: string) => {
       }
       setTimeout(poll, 500)
     } catch {
-      setTimeout(poll, 1000)
+      if (!activeDownloads.value[idx]?._aborted) {
+        setTimeout(poll, 1000)
+      }
     }
   }
   poll()
@@ -432,19 +443,47 @@ const clearCompletedDownloads = () => {
   activeDownloads.value = activeDownloads.value.filter(d => d.status === 'downloading')
 }
 
+const cancelUpload = (upload: any) => {
+  upload._aborted = true
+  if (upload._pollTimer) clearTimeout(upload._pollTimer)
+  if (upload._xhr) {
+    upload._xhr.abort()
+  }
+  upload.status = 'cancelled'
+}
+
+const cancelDownload = async (dl: any) => {
+  dl._aborted = true
+  dl.status = 'cancelled'
+  if (dl.sessionId) {
+    try {
+      const token = localStorage.getItem('token')
+      const apiBase = useRuntimeConfig().public.apiBase
+      await fetch(`${apiBase}/api/files/download-cancel?session=${dl.sessionId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      })
+    } catch {}
+  }
+}
+
 const uploadFile = (file: File) => {
   const key = `${file.name}-${file.size}-${file.lastModified}`
   if (pendingFiles.has(key)) return
   pendingFiles.add(key)
 
   const id = `upload-${++uploadCounter}-${Date.now()}`
+  const abortController = new AbortController()
   uploads.value.push({
     id,
     name: file.name,
     status: 'uploading',
     percent: 0,
     loaded: 0,
-    total: file.size
+    total: file.size,
+    _xhr: null as XMLHttpRequest | null,
+    _aborted: false,
+    _pollTimer: null as ReturnType<typeof setTimeout> | null
   })
 
   const idx = uploads.value.length - 1
@@ -454,6 +493,7 @@ const uploadFile = (file: File) => {
   if (currentFolder.value) formData.append('parent_id', String(currentFolder.value))
 
   const xhr = new XMLHttpRequest()
+  uploads.value[idx]._xhr = xhr
 
   xhr.upload.addEventListener('progress', (e) => {
     if (e.lengthComputable && e.total > 0) {
@@ -527,12 +567,13 @@ const pollUploadProgress = async (idx: number, fileId: number) => {
   }
 
   const loop = async () => {
+    if (uploads.value[idx]?._aborted) return
     const done = await poll()
-    if (!done) {
-      setTimeout(loop, 500)
+    if (!done && !uploads.value[idx]?._aborted) {
+      uploads.value[idx]._pollTimer = setTimeout(loop, 500)
     }
   }
-  setTimeout(loop, 500)
+  uploads.value[idx]._pollTimer = setTimeout(loop, 500)
 }
 
 const handleUpload = (e: Event) => {
@@ -995,6 +1036,25 @@ onMounted(async () => {
 
 .upload-item-progress {
   margin-top: 0.375rem;
+}
+
+.cancel-btn {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: color 0.1s ease, background-color 0.1s ease;
+}
+
+.cancel-btn:hover {
+  color: var(--color-danger);
+  background-color: rgba(250, 82, 82, 0.08);
 }
 
 .upload-item-progress-track {

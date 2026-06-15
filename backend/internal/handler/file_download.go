@@ -274,6 +274,30 @@ func (h *FileHandler) processDownload(sess *downloadSession, chunks []downloadCh
 	sess.Status = "ready"
 }
 
+func (h *FileHandler) CancelDownload(c *gin.Context) {
+	sessionID := c.Query("session")
+	if sessionID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "session required"})
+		return
+	}
+
+	val, ok := downloadSessions.Load(sessionID)
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
+		return
+	}
+
+	sess := val.(*downloadSession)
+	sess.Status = "cancelled"
+	downloadSessions.Delete(sessionID)
+
+	if sess.FilePath != "" {
+		os.Remove(sess.FilePath)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "cancelled"})
+}
+
 func (h *FileHandler) DownloadProgress(c *gin.Context) {
 	sessionID := c.Query("session")
 	if sessionID == "" {
