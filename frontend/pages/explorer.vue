@@ -158,6 +158,46 @@
         </div>
       </div>
     </Transition>
+
+    <Transition name="upload-panel">
+      <div v-if="activeDownloads.length" class="upload-panel" style="bottom: 5rem;">
+        <div class="upload-panel-header">
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <Download :size="14" style="color: var(--color-brand-500);" />
+            <span style="font-size: 0.8125rem; font-weight: 600; color: var(--color-text-primary);">
+              {{ activeDownloads.some(d => d.status === 'downloading') ? `Downloading...` : `Downloaded ${activeDownloads.length} file${activeDownloads.length > 1 ? 's' : ''}` }}
+            </span>
+          </div>
+          <button class="upload-panel-close" @click="clearCompletedDownloads" v-if="!activeDownloads.some(d => d.status === 'downloading')">
+            <X :size="14" />
+          </button>
+        </div>
+        <div class="upload-panel-body">
+          <div v-for="dl in activeDownloads" :key="dl.id" class="upload-item">
+            <div class="upload-item-icon">
+              <Download :size="14" />
+            </div>
+            <div class="upload-item-info">
+              <div class="upload-item-name">{{ dl.fileName }}</div>
+              <div class="upload-item-meta">
+                <span v-if="dl.status === 'downloading'">{{ dl.progress }}% - {{ dl.chunksDone }} / {{ dl.chunksTotal }} chunks</span>
+                <span v-else-if="dl.status === 'done'" style="color: var(--color-success);">Done</span>
+                <span v-else-if="dl.status === 'error'" style="color: var(--color-danger);">Failed</span>
+              </div>
+              <div class="upload-item-progress">
+                <div class="upload-item-progress-track">
+                  <div
+                    class="upload-item-progress-fill"
+                    :class="{ 'fill-error': dl.status === 'error', 'fill-done': dl.status === 'done' }"
+                    :style="{ width: dl.progress + '%' }"
+                  ></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -301,7 +341,93 @@ const executeDelete = async () => {
 }
 
 const downloadFile = async (file: any) => {
-  router.push(`/download/${encodeURIComponent(file.name)}`)
+  if (activeDownloads.value.find(d => d.fileName === file.name && d.status === 'downloading')) return
+  const id = `dl-${++downloadCounter}`
+  activeDownloads.value.push({
+    id,
+    fileName: file.name,
+    fileSize: file.size_total,
+    status: 'downloading',
+    progress: 0,
+    chunksDone: 0,
+    chunksTotal: 0,
+    sessionId: ''
+  })
+  const idx = activeDownloads.value.length - 1
+  try {
+    const resp = await apiFetch('/api/files/download-by-name', {
+      method: 'POST',
+      body: { name: file.name }
+    }) as any
+    activeDownloads.value[idx].sessionId = resp.session_id
+    activeDownloads.value[idx].chunksTotal = resp.chunks
+    activeDownloads.value[idx].fileSize = resp.file_size
+    pollDownloadProgress(idx, file.name)
+  } catch (e: any) {
+    activeDownloads.value[idx].status = 'error'
+  }
+}
+
+const pollDownloadProgress = async (idx: number, fileName: string) => {
+  const token = localStorage.getItem('token')
+  const apiBase = useRuntimeConfig().public.apiBase
+
+  const poll = async () => {
+    try {
+      const sessId = activeDownloads.value[idx]?.sessionId
+      if (!sessId) return
+      const resp = await fetch(`${apiBase}/api/files/0/download-progress?session=${sessId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (!resp.ok) return
+      const data = await resp.json()
+
+      activeDownloads.value[idx].progress = data.progress || 0
+      activeDownloads.value[idx].chunksDone = data.chunks_done || 0
+      activeDownloads.value[idx].chunksTotal = data.chunks_total || 1
+
+      if (data.status === 'ready') {
+        activeDownloads.value[idx].status = 'done'
+        activeDownloads.value[idx].progress = 100
+        const fileResp = await fetch(`${apiBase}/api/files/download-by-name`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ name: fileName })
+        })
+        if (fileResp.ok) {
+          const blob = await fileResp.blob()
+          const disposition = fileResp.headers.get('Content-Disposition') || ''
+          const nameMatch = disposition.match(/filename="?([^"]+)"?/)
+          const fname = nameMatch ? nameMatch[1] : fileName
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = fname
+          a.click()
+          URL.revokeObjectURL(url)
+        }
+        return
+      }
+      if (data.status === 'error') {
+        activeDownloads.value[idx].status = 'error'
+        return
+      }
+      setTimeout(poll, 500)
+    } catch {
+      setTimeout(poll, 1000)
+    }
+  }
+  poll()
+}
+
+const activeDownloads = ref<any[]>([])
+let downloadCounter = 0
+
+const clearCompletedDownloads = () => {
+  activeDownloads.value = activeDownloads.value.filter(d => d.status === 'downloading')
 }
 
 const uploadFile = (file: File) => {
