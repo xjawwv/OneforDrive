@@ -1,0 +1,801 @@
+<template>
+  <div class="app-layout" @dragover.prevent @drop.prevent="handleDrop" @dragenter.prevent="dragEnter" @dragleave.prevent="dragLeave">
+    <AppSidebar current="explorer" />
+    <div class="app-main">
+      <header class="page-header">
+        <div class="breadcrumb" v-if="breadcrumbs.length">
+          <button class="breadcrumb-item" @click="navigateToFolder(null)">
+            <Home :size="14" />
+            <span>My Drive</span>
+          </button>
+          <template v-for="(crumb, i) in breadcrumbs" :key="crumb.id">
+            <ChevronRight :size="14" class="breadcrumb-sep" />
+            <button class="breadcrumb-item" :class="{ active: i === breadcrumbs.length - 1 }" @click="navigateToFolder(crumb.id)">
+              {{ crumb.name }}
+            </button>
+          </template>
+        </div>
+        <div v-else>
+          <h1 class="page-title">My Drive</h1>
+          <p class="page-subtitle">Browse and manage your files</p>
+        </div>
+        <div class="header-actions">
+          <button class="btn-secondary" @click="showNewFolder = true">
+            <FolderPlus :size="16" />
+            <span>New Folder</span>
+          </button>
+          <label class="btn-primary upload-btn">
+            <Upload :size="16" />
+            <span>Upload</span>
+            <input type="file" multiple @change="handleUpload" style="display: none;" />
+          </label>
+        </div>
+      </header>
+
+      <div v-if="showNewFolder" class="card" style="margin-bottom: 1rem; padding: 1rem 1.25rem;">
+        <div style="display: flex; gap: 0.75rem; align-items: flex-end;">
+          <div style="flex: 1;">
+            <label style="display: block; font-size: 0.75rem; font-weight: 500; color: var(--color-text-secondary); margin-bottom: 0.25rem;">Folder name</label>
+            <input v-model="newFolderName" class="input-field" placeholder="Untitled folder" @keyup.enter="createFolder" autofocus />
+          </div>
+          <button class="btn-primary" @click="createFolder" :disabled="!newFolderName.trim()" style="height: 2.25rem;">Create</button>
+          <button class="btn-secondary" @click="showNewFolder = false; newFolderName = ''" style="height: 2.25rem;">Cancel</button>
+        </div>
+      </div>
+
+      <div class="drop-zone" :class="{ 'drop-zone-active': isDragging }">
+        <div v-if="isDragging" class="drop-overlay">
+          <Upload :size="40" style="color: var(--color-brand-500);" />
+          <p style="font-size: 1rem; font-weight: 600; color: var(--color-text-primary); margin: 0.75rem 0 0.25rem 0;">Drop files here</p>
+          <p style="font-size: 0.8125rem; color: var(--color-text-muted); margin: 0;">Files will upload to the current folder</p>
+        </div>
+
+        <template v-else>
+          <div v-if="loading" class="empty-state">
+            <Loader2 :size="24" class="spin" style="color: var(--color-text-muted);" />
+            <p style="margin-top: 0.75rem; font-size: 0.8125rem; color: var(--color-text-muted);">Loading files...</p>
+          </div>
+
+          <div v-else-if="files.length === 0" class="empty-state">
+            <FolderOpen :size="48" style="color: var(--color-surface-3); margin-bottom: 1rem;" />
+            <h3 style="font-size: 1rem; font-weight: 600; color: var(--color-text-primary); margin: 0 0 0.375rem 0;">No files here</h3>
+            <p style="font-size: 0.8125rem; color: var(--color-text-muted);">Upload files or create a folder to get started.</p>
+          </div>
+
+          <div v-else>
+            <div class="file-list-header">
+              <span class="file-col-name">Name</span>
+              <span class="file-col-size">Size</span>
+              <span class="file-col-date">Date Modified</span>
+              <span class="file-col-actions"></span>
+            </div>
+            <div class="file-list">
+              <div
+                v-for="file in files"
+                :key="file.id"
+                class="file-row"
+                @dblclick="file.is_folder ? navigateToFolder(file.id) : null"
+              >
+                <div class="file-col-name">
+                  <div class="file-icon" :class="file.is_folder ? 'file-icon-folder' : 'file-icon-file'">
+                    <Folder v-if="file.is_folder" :size="16" />
+                    <File v-else :size="16" />
+                  </div>
+                  <span class="file-name" :class="{ 'folder-name': file.is_folder }" @click="file.is_folder ? navigateToFolder(file.id) : null">
+                    {{ file.name }}
+                  </span>
+                </div>
+                <span class="file-col-size">{{ file.is_folder ? '--' : formatSize(file.size_total) }}</span>
+                <span class="file-col-date">{{ formatDate(file.updated_at) }}</span>
+                <div class="file-col-actions">
+                  <button class="icon-btn" @click="deleteFile(file.id)" title="Delete">
+                    <Trash2 :size="14" />
+                  </button>
+                  <button v-if="!file.is_folder" class="icon-btn" @click="downloadFile(file.id)" title="Download">
+                    <Download :size="14" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <Transition name="upload-panel">
+      <div v-if="uploads.length" class="upload-panel">
+        <div class="upload-panel-header">
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <Upload :size="14" style="color: var(--color-brand-500);" />
+            <span style="font-size: 0.8125rem; font-weight: 600; color: var(--color-text-primary);">
+              {{ uploadingCount ? `Uploading ${uploadingCount} file${uploadingCount > 1 ? 's' : ''}...` : `Uploaded ${completedCount} file${completedCount > 1 ? 's' : ''}` }}
+            </span>
+          </div>
+          <button class="upload-panel-close" @click="clearCompletedUploads" v-if="!uploadingCount">
+            <X :size="14" />
+          </button>
+        </div>
+        <div class="upload-panel-body">
+          <div v-for="upload in uploads" :key="upload.id" class="upload-item">
+            <div class="upload-item-icon">
+              <File :size="14" />
+            </div>
+            <div class="upload-item-info">
+              <div class="upload-item-name">{{ upload.name }}</div>
+              <div class="upload-item-meta">
+                <span v-if="upload.status === 'uploading'">{{ upload.percent }}% - {{ formatSize(upload.loaded) }} of {{ formatSize(upload.total) }}</span>
+                <span v-else-if="upload.status === 'done'" style="color: var(--color-success);">Done</span>
+                <span v-else-if="upload.status === 'error'" style="color: var(--color-danger);">Failed</span>
+                <span v-else-if="upload.status === 'queued'" style="color: var(--color-text-muted);">Waiting...</span>
+              </div>
+              <div class="upload-item-progress">
+                <div class="upload-item-progress-track">
+                  <div
+                    class="upload-item-progress-fill"
+                    :class="{ 'fill-error': upload.status === 'error', 'fill-done': upload.status === 'done' }"
+                    :style="{ width: upload.percent + '%' }"
+                  ></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { FolderOpen, FolderPlus, Upload, Folder, File, Trash2, Download, ChevronRight, Home, Loader2, X } from 'lucide-vue-next'
+
+definePageMeta({ layout: false })
+
+const { apiFetch } = useApi()
+
+const files = ref<any[]>([])
+const loading = ref(true)
+const currentFolder = ref<number | null>(null)
+const breadcrumbs = ref<{ id: number; name: string }[]>([])
+const showNewFolder = ref(false)
+const newFolderName = ref('')
+const isDragging = ref(false)
+let dragCounter = 0
+
+const dragEnter = () => {
+  dragCounter++
+  isDragging.value = true
+}
+
+const dragLeave = () => {
+  dragCounter--
+  if (dragCounter <= 0) {
+    dragCounter = 0
+    isDragging.value = false
+  }
+}
+
+interface UploadItem {
+  id: string
+  name: string
+  status: 'queued' | 'uploading' | 'done' | 'error'
+  percent: number
+  loaded: number
+  total: number
+}
+
+const uploads = ref<UploadItem[]>([])
+let uploadCounter = 0
+const pendingFiles = new Set<string>()
+
+const uploadingCount = computed(() => uploads.value.filter(u => u.status === 'uploading' || u.status === 'queued').length)
+const completedCount = computed(() => uploads.value.filter(u => u.status === 'done').length)
+
+const formatSize = (bytes: number) => {
+  if (!bytes) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(1024))
+  return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`
+}
+
+const formatDate = (dateStr: string) => {
+  if (!dateStr) return '--'
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return '--'
+  const now = new Date()
+  const diff = now.getTime() - d.getTime()
+  const mins = Math.floor(diff / 60000)
+  const hours = Math.floor(diff / 3600000)
+  const days = Math.floor(diff / 86400000)
+  if (mins < 1) return 'Just now'
+  if (mins < 60) return `${mins}m ago`
+  if (hours < 24) return `${hours}h ago`
+  if (days < 7) return `${days}d ago`
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined })
+}
+
+const loadFiles = async () => {
+  loading.value = true
+  try {
+    const params = currentFolder.value ? `?parent_id=${currentFolder.value}` : ''
+    files.value = (await apiFetch(`/api/files${params}`)) as any[]
+  } catch {
+    files.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+const navigateToFolder = (id: number | null) => {
+  currentFolder.value = id
+  if (id === null) {
+    breadcrumbs.value = []
+  }
+  loadFiles()
+}
+
+const createFolder = async () => {
+  if (!newFolderName.value.trim()) return
+  try {
+    await apiFetch('/api/files/folder', {
+      method: 'POST',
+      body: { name: newFolderName.value.trim(), parent_id: currentFolder.value }
+    })
+    newFolderName.value = ''
+    showNewFolder.value = false
+    await loadFiles()
+  } catch {}
+}
+
+const deleteFile = async (id: number) => {
+  try {
+    await apiFetch(`/api/files/${id}`, { method: 'DELETE' })
+    await loadFiles()
+  } catch {}
+}
+
+const downloadFile = async (id: number) => {
+  try {
+    const token = localStorage.getItem('token')
+    const resp = await fetch(`${useRuntimeConfig().public.apiBase}/api/files/${id}/download`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: 'Download failed' }))
+      alert(err.error || 'Download failed')
+      return
+    }
+    const blob = await resp.blob()
+    const disposition = resp.headers.get('Content-Disposition') || ''
+    const nameMatch = disposition.match(/filename="?([^"]+)"?/)
+    const filename = nameMatch ? nameMatch[1] : 'download'
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (e: any) {
+    alert(e.message || 'Download failed')
+  }
+}
+
+const uploadFile = (file: File) => {
+  const key = `${file.name}-${file.size}-${file.lastModified}`
+  if (pendingFiles.has(key)) return
+  pendingFiles.add(key)
+
+  const id = `upload-${++uploadCounter}-${Date.now()}`
+  uploads.value.push({
+    id,
+    name: file.name,
+    status: 'uploading',
+    percent: 0,
+    loaded: 0,
+    total: file.size
+  })
+
+  const idx = uploads.value.length - 1
+
+  const formData = new FormData()
+  formData.append('file', file)
+  if (currentFolder.value) formData.append('parent_id', String(currentFolder.value))
+
+  const xhr = new XMLHttpRequest()
+
+  xhr.upload.addEventListener('progress', (e) => {
+    if (e.lengthComputable && e.total > 0) {
+      const pct = Math.round((e.loaded / e.total) * 100)
+      uploads.value[idx].percent = Math.min(pct, 99)
+      uploads.value[idx].loaded = e.loaded
+      uploads.value[idx].total = e.total
+    }
+  })
+
+  xhr.addEventListener('load', () => {
+    if (xhr.status >= 200 && xhr.status < 300) {
+      const resp = JSON.parse(xhr.responseText)
+      const fileId = resp.id
+      uploads.value[idx].loaded = uploads.value[idx].total
+      uploads.value[idx].percent = 99
+      pollUploadProgress(idx, fileId)
+    } else {
+      pendingFiles.delete(key)
+      uploads.value[idx].status = 'error'
+    }
+  })
+
+  xhr.addEventListener('error', () => {
+    pendingFiles.delete(key)
+    uploads.value[idx].status = 'error'
+  })
+
+  xhr.open('POST', `${useRuntimeConfig().public.apiBase}/api/files/upload`)
+  xhr.setRequestHeader('Authorization', `Bearer ${localStorage.getItem('token')}`)
+  xhr.send(formData)
+}
+
+const pollUploadProgress = async (idx: number, fileId: number) => {
+  const token = localStorage.getItem('token')
+  const apiBase = useRuntimeConfig().public.apiBase
+  let lastServerPercent = 0
+
+  const poll = async (): Promise<boolean> => {
+    try {
+      const resp = await fetch(`${apiBase}/api/files/${fileId}/progress`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (!resp.ok) return false
+      const data = await resp.json()
+
+      if (data.status === 'active') {
+        uploads.value[idx].percent = 100
+        uploads.value[idx].loaded = uploads.value[idx].total
+        uploads.value[idx].status = 'done'
+        loadFiles()
+        return true
+      }
+
+      if (data.status === 'error') {
+        uploads.value[idx].status = 'error'
+        return true
+      }
+
+      const serverPercent = data.progress || 0
+      if (serverPercent > lastServerPercent) {
+        lastServerPercent = serverPercent
+        uploads.value[idx].percent = Math.min(serverPercent, 99)
+        uploads.value[idx].loaded = Math.round((serverPercent / 100) * uploads.value[idx].total)
+      }
+
+      return false
+    } catch {
+      return false
+    }
+  }
+
+  const loop = async () => {
+    const done = await poll()
+    if (!done) {
+      setTimeout(loop, 500)
+    }
+  }
+  setTimeout(loop, 500)
+}
+
+const handleUpload = (e: Event) => {
+  const input = e.target as HTMLInputElement
+  if (!input.files?.length) return
+  const fileList = Array.from(input.files)
+  input.value = ''
+  for (const file of fileList) {
+    uploadFile(file)
+  }
+}
+
+const handleDrop = (e: DragEvent) => {
+  isDragging.value = false
+  dragCounter = 0
+  const droppedFiles = e.dataTransfer?.files
+  if (!droppedFiles?.length) return
+  for (const file of Array.from(droppedFiles)) {
+    uploadFile(file)
+  }
+}
+
+const clearCompletedUploads = () => {
+  uploads.value = uploads.value.filter(u => u.status === 'uploading' || u.status === 'queued')
+}
+
+onMounted(() => {
+  if (import.meta.client) {
+    if (!localStorage.getItem('token')) { navigateTo('/login'); return }
+  }
+  loadFiles()
+})
+</script>
+
+<style scoped>
+.app-layout {
+  display: flex;
+  min-height: 100vh;
+  background-color: var(--color-surface-1);
+}
+
+.app-main {
+  flex: 1;
+  margin-left: 240px;
+  padding: 2rem 2.5rem;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.75rem;
+}
+
+.page-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  letter-spacing: -0.025em;
+}
+
+.page-subtitle {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  margin-top: 0.25rem;
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-secondary {
+  background-color: var(--color-surface-0);
+  color: var(--color-text-secondary);
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  font-size: 0.8125rem;
+  border: 1px solid var(--color-surface-3);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: background-color 0.12s ease;
+}
+
+.btn-secondary:hover {
+  background-color: var(--color-surface-1);
+}
+
+.upload-btn {
+  cursor: pointer;
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.breadcrumb-item {
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0.25rem 0.375rem;
+  border-radius: 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  transition: color 0.12s ease, background-color 0.12s ease;
+}
+
+.breadcrumb-item:hover {
+  color: var(--color-text-primary);
+  background-color: var(--color-surface-2);
+}
+
+.breadcrumb-item.active {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.breadcrumb-sep {
+  color: var(--color-text-muted);
+}
+
+.empty-state {
+  text-align: center;
+  padding: 5rem 1.5rem;
+}
+
+.file-list-header {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--color-surface-2);
+}
+
+.file-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.file-row {
+  display: flex;
+  align-items: center;
+  padding: 0.625rem 0.75rem;
+  border-bottom: 1px solid var(--color-surface-2);
+  transition: background-color 0.1s ease;
+}
+
+.file-row:hover {
+  background-color: var(--color-surface-1);
+}
+
+.file-col-name {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-width: 0;
+}
+
+.file-col-size {
+  width: 100px;
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  text-align: right;
+}
+
+.file-col-date {
+  width: 120px;
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  text-align: right;
+}
+
+.file-col-actions {
+  width: 80px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+
+.file-row:hover .file-col-actions {
+  opacity: 1;
+}
+
+.file-icon {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.375rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.file-icon-folder {
+  background-color: rgba(76, 110, 245, 0.1);
+  color: var(--color-brand-600);
+}
+
+.file-icon-file {
+  background-color: var(--color-surface-2);
+  color: var(--color-text-muted);
+}
+
+.file-name {
+  font-size: 0.8125rem;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.folder-name {
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.folder-name:hover {
+  color: var(--color-brand-600);
+}
+
+.icon-btn {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.1s ease, background-color 0.1s ease;
+}
+
+.icon-btn:hover {
+  color: var(--color-text-primary);
+  background-color: var(--color-surface-2);
+}
+
+.drop-zone {
+  min-height: 400px;
+  border: 2px dashed transparent;
+  border-radius: 0.75rem;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+  position: relative;
+}
+
+.drop-zone-active {
+  border-color: var(--color-brand-400);
+  background-color: rgba(76, 110, 245, 0.04);
+}
+
+.drop-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  border-radius: 0.75rem;
+  background-color: rgba(76, 110, 245, 0.06);
+}
+
+.upload-panel {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  width: 360px;
+  background-color: var(--color-surface-0);
+  border: 1px solid var(--color-surface-3);
+  border-radius: 0.75rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  z-index: 100;
+  overflow: hidden;
+}
+
+.upload-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--color-surface-2);
+}
+
+.upload-panel-close {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.1s ease, background-color 0.1s ease;
+}
+
+.upload-panel-close:hover {
+  color: var(--color-text-primary);
+  background-color: var(--color-surface-2);
+}
+
+.upload-panel-body {
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 0.5rem 0;
+}
+
+.upload-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  padding: 0.5rem 1rem;
+}
+
+.upload-item-icon {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.375rem;
+  background-color: var(--color-surface-2);
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 0.125rem;
+}
+
+.upload-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.upload-item-name {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.upload-item-meta {
+  font-size: 0.6875rem;
+  color: var(--color-text-muted);
+  margin-top: 0.125rem;
+}
+
+.upload-item-progress {
+  margin-top: 0.375rem;
+}
+
+.upload-item-progress-track {
+  width: 100%;
+  height: 4px;
+  background-color: var(--color-surface-2);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.upload-item-progress-fill {
+  height: 100%;
+  background-color: var(--color-brand-500);
+  border-radius: 9999px;
+  transition: width 0.2s ease;
+}
+
+.upload-item-progress-fill.fill-error {
+  background-color: var(--color-danger);
+}
+
+.upload-item-progress-fill.fill-done {
+  background-color: var(--color-success);
+}
+
+.upload-panel-enter-active {
+  transition: all 0.25s ease;
+}
+
+.upload-panel-leave-active {
+  transition: all 0.2s ease;
+}
+
+.upload-panel-enter-from {
+  opacity: 0;
+  transform: translateY(1rem);
+}
+
+.upload-panel-leave-to {
+  opacity: 0;
+  transform: translateY(0.5rem);
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+</style>

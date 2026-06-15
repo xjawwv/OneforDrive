@@ -1,0 +1,11 @@
+.codex/
+.impeccable/
+node_modules/
+.nuxt/
+.output/
+*.log
+.env
+.env.*
+backend/go.sum
+frontend/.output/
+frontend/.nuxt/

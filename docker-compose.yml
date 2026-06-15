@@ -1,0 +1,63 @@
+services:
+  mysql:
+    image: mysql:8
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: routestorage
+      MYSQL_USER: rsuser
+      MYSQL_PASSWORD: rspass
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-ursuser", "-prspass"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./backend
+    ports:
+      - "8081:8080"
+    environment:
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_USER: rsuser
+      DB_PASSWORD: rspass
+      DB_NAME: routestorage
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      JWT_SECRET: super-secret-jwt-key-change-me
+      GOOGLE_CLIENT_ID: "531763829203-vo2vt9tlre3cr9oulu8oeag6ij32b4i2.apps.googleusercontent.com"
+      GOOGLE_CLIENT_SECRET: "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"
+      GOOGLE_REDIRECT_URL: "http://localhost:8081/api/accounts/oauth/callback"
+      CHUNK_SIZE_MB: "256"
+      FRONTEND_URL: "http://localhost:3000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      NUXT_PUBLIC_API_BASE: "http://localhost:8081"
+    depends_on:
+      - backend
+
+volumes:
+  mysql_data:

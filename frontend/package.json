@@ -1,0 +1,24 @@
+{
+  "name": "routestorage-frontend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview"
+  },
+  "dependencies": {
+    "nuxt": "^3.13.2",
+    "vue": "^3.5.13",
+    "vue-router": "^4.4.5",
+    "lucide-vue-next": "0.395.0"
+  },
+  "devDependencies": {
+    "@nuxtjs/tailwindcss": "^6.12.1",
+    "@nuxtjs/color-mode": "^3.4.4",
+    "tailwindcss": "^3.4.14",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47"
+  }
+}
