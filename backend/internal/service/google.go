@@ -194,6 +194,29 @@ type DriveAccountInfo struct {
 	Used      int64
 }
 
+func GetAllDriveAccounts(db *sql.DB, userID int64) ([]DriveAccountInfo, error) {
+	rows, err := db.Query(
+		"SELECT id, email, capacity_total, capacity_used FROM drive_accounts WHERE user_id = ? AND is_active = TRUE",
+		userID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var accounts []DriveAccountInfo
+	for rows.Next() {
+		var a DriveAccountInfo
+		if err := rows.Scan(&a.ID, &a.Email, &a.Capacity, &a.Used); err == nil {
+			accounts = append(accounts, a)
+		}
+	}
+	if len(accounts) == 0 {
+		return nil, fmt.Errorf("no active drive accounts")
+	}
+	return accounts, nil
+}
+
 func GetBestDriveAccount(db *sql.DB, userID int64, minBytes int64) (*DriveAccountInfo, error) {
 	rows, err := db.Query(
 		"SELECT id, email, capacity_total, capacity_used FROM drive_accounts WHERE user_id = ? AND is_active = TRUE ORDER BY (capacity_total - capacity_used) DESC",

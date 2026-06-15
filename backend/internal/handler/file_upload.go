@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"net/textproto"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"sync"
 
@@ -34,6 +36,38 @@ func getEnv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+type progressReader struct {
+	r            io.Reader
+	total        int64
+	read         int64
+	fileID       int64
+	db           *sql.DB
+	lastDBUpdate int64
+}
+
+func (pr *progressReader) Read(p []byte) (int, error) {
+	n, err := pr.r.Read(p)
+	pr.read += int64(n)
+	if n > 0 {
+		step := int64(2 * 1024 * 1024)
+		if pr.total < 10*1024*1024 {
+			step = 256 * 1024
+		}
+		if pr.read-pr.lastDBUpdate >= step || err == io.EOF {
+			pr.lastDBUpdate = pr.read
+			pct := int(float64(pr.read) / float64(pr.total) * 99)
+			if pct > 99 {
+				pct = 99
+			}
+			if pct < 0 {
+				pct = 0
+			}
+			pr.db.Exec("UPDATE files SET upload_progress = ? WHERE id = ?", pct, pr.fileID)
+		}
+	}
+	return n, err
 }
 
 func (h *FileHandler) UploadFile(c *gin.Context) {
@@ -88,6 +122,12 @@ func (h *FileHandler) UploadFile(c *gin.Context) {
 	go h.processUpload(userID, fileID, header.Filename, tmpFile.Name(), written)
 }
 
+type driveAssignment struct {
+	accountID int64
+	token     string
+	freeSpace int64
+}
+
 func (h *FileHandler) processUpload(userID, fileID int64, filename, tmpPath string, totalSize int64) {
 	defer os.Remove(tmpPath)
 
@@ -95,6 +135,27 @@ func (h *FileHandler) processUpload(userID, fileID int64, filename, tmpPath stri
 	numChunks := int((totalSize + chunkSizeBytes - 1) / chunkSizeBytes)
 	if numChunks < 1 {
 		numChunks = 1
+	}
+
+	accounts, err := service.GetAllDriveAccounts(h.DB, userID)
+	if err != nil || len(accounts) == 0 {
+		h.DB.Exec("UPDATE files SET status = 'error', upload_progress = 0 WHERE id = ?", fileID)
+		return
+	}
+
+	sort.Slice(accounts, func(i, j int) bool {
+		return (accounts[i].Capacity - accounts[i].Used) > (accounts[j].Capacity - accounts[j].Used)
+	})
+
+	assignments := make([]driveAssignment, numChunks)
+	for i := 0; i < numChunks; i++ {
+		acct := accounts[i%len(accounts)]
+		token, err := service.GetAccessTokenForAccount(h.DB, acct.ID)
+		if err != nil {
+			log.Printf("No token for account %d, retrying refresh", acct.ID)
+			continue
+		}
+		assignments[i] = driveAssignment{accountID: acct.ID, token: token, freeSpace: acct.Capacity - acct.Used}
 	}
 
 	f, err := os.Open(tmpPath)
@@ -117,17 +178,13 @@ func (h *FileHandler) processUpload(userID, fileID int64, filename, tmpPath stri
 			break
 		}
 		chunkData := buf[:n]
-		wg.Add(1)
-		go func(idx int, data []byte) {
-			defer wg.Done()
-			results[idx] = h.uploadChunk(userID, fileID, filename, data, idx)
-		}(i, chunkData)
+		assignment := assignments[i]
 
-		progress := int(float64(i+1) / float64(numChunks) * 100)
-		if progress > 99 {
-			progress = 99
-		}
-		h.DB.Exec("UPDATE files SET upload_progress = ? WHERE id = ?", progress, fileID)
+		wg.Add(1)
+		go func(idx int, data []byte, assign driveAssignment) {
+			defer wg.Done()
+			results[idx] = h.uploadChunkToFile(fileID, filename, data, idx, assign)
+		}(i, chunkData, assignment)
 	}
 
 	wg.Wait()
@@ -143,11 +200,11 @@ func (h *FileHandler) processUpload(userID, fileID int64, filename, tmpPath stri
 	if failed {
 		for _, r := range results {
 			if r.err == nil && r.driveFileID != "" {
-				accessToken, err := service.GetAccessTokenForAccount(h.DB, r.accountID)
+				token, err := service.GetAccessTokenForAccount(h.DB, r.accountID)
 				if err == nil {
 					deleteURL := fmt.Sprintf("https://www.googleapis.com/drive/v3/files/%s", r.driveFileID)
 					req, _ := http.NewRequest("DELETE", deleteURL, nil)
-					req.Header.Set("Authorization", "Bearer "+accessToken)
+					req.Header.Set("Authorization", "Bearer "+token)
 					http.DefaultClient.Do(req)
 				}
 			}
@@ -160,17 +217,7 @@ func (h *FileHandler) processUpload(userID, fileID int64, filename, tmpPath stri
 	h.DB.Exec("UPDATE files SET status = 'active', upload_progress = 100 WHERE id = ?", fileID)
 }
 
-func (h *FileHandler) uploadChunk(userID, fileID int64, filename string, data []byte, index int) chunkResult {
-	account, err := service.GetBestDriveAccount(h.DB, userID, int64(len(data)))
-	if err != nil {
-		return chunkResult{index: index, err: err}
-	}
-
-	accessToken, err := service.GetAccessTokenForAccount(h.DB, account.ID)
-	if err != nil {
-		return chunkResult{index: index, err: fmt.Errorf("no access token for account %d", account.ID)}
-	}
-
+func (h *FileHandler) uploadChunkToFile(fileID int64, filename string, data []byte, index int, assign driveAssignment) chunkResult {
 	chunkName := fmt.Sprintf("%s.part%d", filename, index)
 
 	body := &bytes.Buffer{}
@@ -194,12 +241,19 @@ func (h *FileHandler) uploadChunk(userID, fileID int64, filename string, data []
 	part.Write(data)
 	writer.Close()
 
+	totalBodySize := int64(body.Len())
+
 	uploadURL := "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart"
-	req, err := http.NewRequest("POST", uploadURL, body)
+	req, err := http.NewRequest("POST", uploadURL, &progressReader{
+		r:      body,
+		total:  totalBodySize,
+		fileID: fileID,
+		db:     h.DB,
+	})
 	if err != nil {
 		return chunkResult{index: index, err: err}
 	}
-	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Authorization", "Bearer "+assign.token)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	resp, err := http.DefaultClient.Do(req)
@@ -223,15 +277,15 @@ func (h *FileHandler) uploadChunk(userID, fileID int64, filename string, data []
 
 	h.DB.Exec(
 		"INSERT INTO file_chunks (file_id, chunk_index, chunk_size, drive_file_id, account_id, checksum) VALUES (?, ?, ?, ?, ?, ?)",
-		fileID, index, int64(len(data)), driveResp.ID, account.ID, checksum,
+		fileID, index, int64(len(data)), driveResp.ID, assign.accountID, checksum,
 	)
 
-	service.UpdateAccountUsage(h.DB, account.ID, int64(len(data)))
+	service.UpdateAccountUsage(h.DB, assign.accountID, int64(len(data)))
 
 	return chunkResult{
 		index:       index,
 		driveFileID: driveResp.ID,
-		accountID:   account.ID,
+		accountID:   assign.accountID,
 		size:        int64(len(data)),
 		checksum:    checksum,
 	}
