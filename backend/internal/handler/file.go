@@ -103,6 +103,48 @@ func (h *FileHandler) DownloadFile(c *gin.Context) {
 		return chunks[i].ChunkIndex < chunks[j].ChunkIndex
 	})
 
+	type chunkData struct {
+		data []byte
+		err  error
+		done chan struct{}
+	}
+
+	results := make([]chunkData, len(chunks))
+	for i := range results {
+		results[i].done = make(chan struct{})
+	}
+
+	for i, ch := range chunks {
+		go func(idx int, ci chunkInfo) {
+			defer close(results[idx].done)
+
+			accessToken, err := service.GetAccessTokenForAccount(h.DB, ci.AccountID)
+			if err != nil {
+				results[idx].err = fmt.Errorf("token error chunk %d: %w", ci.ChunkIndex, err)
+				return
+			}
+
+			driveURL := fmt.Sprintf("https://www.googleapis.com/drive/v3/files/%s?alt=media", ci.DriveFileID)
+			req, err := http.NewRequest("GET", driveURL, nil)
+			if err != nil {
+				results[idx].err = err
+				return
+			}
+			req.Header.Set("Authorization", "Bearer "+accessToken)
+
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				results[idx].err = fmt.Errorf("drive download failed chunk %d: %w", ci.ChunkIndex, err)
+				return
+			}
+			defer resp.Body.Close()
+
+			data, err := io.ReadAll(resp.Body)
+			results[idx].data = data
+			results[idx].err = err
+		}(i, ch)
+	}
+
 	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, f.Name))
 	c.Header("Content-Type", f.MimeType)
 	if f.SizeTotal > 0 {
@@ -110,26 +152,13 @@ func (h *FileHandler) DownloadFile(c *gin.Context) {
 	}
 	c.Status(http.StatusOK)
 
-	for _, ch := range chunks {
-		accessToken, err := service.GetAccessTokenForAccount(h.DB, ch.AccountID)
-		if err != nil {
-			log.Printf("Failed to get token for chunk %d: %v", ch.ChunkIndex, err)
+	for _, res := range results {
+		<-res.done
+		if res.err != nil {
+			log.Printf("Chunk download error: %v", res.err)
 			continue
 		}
-
-		driveURL := fmt.Sprintf("https://www.googleapis.com/drive/v3/files/%s?alt=media", ch.DriveFileID)
-		req, err := http.NewRequest("GET", driveURL, nil)
-		if err != nil {
-			continue
-		}
-		req.Header.Set("Authorization", "Bearer "+accessToken)
-
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			continue
-		}
-		io.Copy(c.Writer, resp.Body)
-		resp.Body.Close()
+		c.Writer.Write(res.data)
 	}
 }
 
