@@ -443,11 +443,16 @@ const clearCompletedDownloads = () => {
   activeDownloads.value = activeDownloads.value.filter(d => d.status === 'downloading')
 }
 
-const cancelUpload = (upload: any) => {
+const cancelUpload = async (upload: any) => {
   upload._aborted = true
   if (upload._pollTimer) clearTimeout(upload._pollTimer)
   if (upload._xhr) {
     upload._xhr.abort()
+  }
+  if (upload._fileId) {
+    try {
+      await apiFetch(`/api/files/${upload._fileId}`, { method: 'DELETE' })
+    } catch {}
   }
   upload.status = 'cancelled'
 }
@@ -483,7 +488,8 @@ const uploadFile = (file: File) => {
     total: file.size,
     _xhr: null as XMLHttpRequest | null,
     _aborted: false,
-    _pollTimer: null as ReturnType<typeof setTimeout> | null
+    _pollTimer: null as ReturnType<typeof setTimeout> | null,
+    _fileId: null as number | null
   })
 
   const idx = uploads.value.length - 1
@@ -508,6 +514,7 @@ const uploadFile = (file: File) => {
     if (xhr.status >= 200 && xhr.status < 300) {
       const resp = JSON.parse(xhr.responseText)
       const fileId = resp.id
+      uploads.value[idx]._fileId = fileId
       uploads.value[idx].loaded = uploads.value[idx].total
       uploads.value[idx].percent = 99
       pollUploadProgress(idx, fileId)
