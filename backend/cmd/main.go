@@ -37,12 +37,16 @@ func main() {
 	fileH := &handler.FileHandler{DB: repository.DB}
 	storageH := &handler.StorageHandler{DB: repository.DB}
 
-	r.GET("/api/storage/stats", storageH.GetStorageStats)
-
 	auth := r.Group("/api/auth")
 	{
 		auth.POST("/register", authH.Register)
 		auth.POST("/login", authH.Login)
+	}
+
+	storage := r.Group("/api/storage")
+	storage.Use(middleware.AuthMiddleware(jwtSecret))
+	{
+		storage.GET("/stats", storageH.GetStorageStats)
 	}
 
 	r.GET("/api/accounts/oauth/callback", accountH.OAuthCallback)

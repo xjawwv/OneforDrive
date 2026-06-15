@@ -17,16 +17,16 @@
         <h2 class="section-title">Storage Overview</h2>
         <div class="stats-grid">
           <div class="stat-item">
-            <div class="stat-value">{{ stats.total_users }}</div>
-            <div class="stat-label">Users</div>
-          </div>
-          <div class="stat-item">
             <div class="stat-value">{{ stats.total_files }}</div>
             <div class="stat-label">Files</div>
           </div>
           <div class="stat-item">
             <div class="stat-value">{{ formatSize(stats.total_used_bytes) }}</div>
             <div class="stat-label">Total Size</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">{{ formatSize(stats.total_capacity_bytes) }}</div>
+            <div class="stat-label">Capacity</div>
           </div>
           <div class="stat-item">
             <div class="stat-value">{{ stats.active_drive_accounts }}</div>
@@ -83,7 +83,7 @@ definePageMeta({ layout: false })
 const { apiFetch } = useApi()
 
 const accounts = ref<any[]>([])
-const stats = ref({ total_users: 0, total_files: 0, total_size_bytes: 0, total_drive_accounts: 0, active_drive_accounts: 0, total_capacity_bytes: 0, total_used_bytes: 0 })
+const stats = ref({ total_files: 0, total_size_bytes: 0, total_drive_accounts: 0, active_drive_accounts: 0, total_capacity_bytes: 0, total_used_bytes: 0 })
 
 const formatSize = (bytes: number) => {
   if (!bytes) return '0 B'
