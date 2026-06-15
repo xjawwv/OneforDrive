@@ -123,9 +123,10 @@ func (h *FileHandler) UploadFile(c *gin.Context) {
 }
 
 type driveAssignment struct {
-	accountID int64
-	token     string
-	freeSpace int64
+	accountID            int64
+	token                string
+	freeSpace            int64
+	routeStorageFolderID string
 }
 
 func (h *FileHandler) processUpload(userID, fileID int64, filename, tmpPath string, totalSize int64) {
@@ -155,7 +156,7 @@ func (h *FileHandler) processUpload(userID, fileID int64, filename, tmpPath stri
 			log.Printf("No token for account %d, retrying refresh", acct.ID)
 			continue
 		}
-		assignments[i] = driveAssignment{accountID: acct.ID, token: token, freeSpace: acct.Capacity - acct.Used}
+		assignments[i] = driveAssignment{accountID: acct.ID, token: token, freeSpace: acct.Capacity - acct.Used, routeStorageFolderID: acct.RouteStorageFolderID}
 	}
 
 	f, err := os.Open(tmpPath)
@@ -223,10 +224,14 @@ func (h *FileHandler) uploadChunkToFile(fileID int64, filename string, data []by
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 
-	metadataJSON, _ := json.Marshal(map[string]string{
+	metadata := map[string]interface{}{
 		"name":     chunkName,
 		"mimeType": "application/octet-stream",
-	})
+	}
+	if assign.routeStorageFolderID != "" {
+		metadata["parents"] = []string{assign.routeStorageFolderID}
+	}
+	metadataJSON, _ := json.Marshal(metadata)
 
 	metadataPart, _ := writer.CreatePart(textproto.MIMEHeader{
 		"Content-Type":        {"application/json; charset=UTF-8"},

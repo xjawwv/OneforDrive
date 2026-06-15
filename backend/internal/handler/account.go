@@ -121,6 +121,11 @@ func (h *AccountHandler) OAuthCallback(c *gin.Context) {
 
 	capacityTotal, capacityUsed, _ := service.GetDriveCapacity(tokenRes.AccessToken)
 
+	routeStorageFolderID, err := service.CreateRouteStorageFolder(tokenRes.AccessToken)
+	if err != nil {
+		log.Printf("Failed to create RouteStorage folder: %v", err)
+	}
+
 	var expiryTime *time.Time
 	if tokenRes.ExpiresIn > 0 {
 		t := time.Now().Add(time.Duration(tokenRes.ExpiresIn) * time.Second)
@@ -128,9 +133,9 @@ func (h *AccountHandler) OAuthCallback(c *gin.Context) {
 	}
 
 	_, err = h.DB.Exec(
-		`INSERT INTO drive_accounts (user_id, email, access_token, refresh_token, token_expiry, capacity_total, capacity_used, is_active)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, TRUE)`,
-		stateUserID, userEmail, tokenRes.AccessToken, tokenRes.RefreshToken, expiryTime, capacityTotal, capacityUsed,
+		`INSERT INTO drive_accounts (user_id, email, access_token, refresh_token, token_expiry, capacity_total, capacity_used, route_storage_folder_id, is_active)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
+		stateUserID, userEmail, tokenRes.AccessToken, tokenRes.RefreshToken, expiryTime, capacityTotal, capacityUsed, routeStorageFolderID,
 	)
 	if err != nil {
 		log.Printf("Failed to save drive account: %v", err)

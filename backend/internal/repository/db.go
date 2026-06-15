@@ -61,6 +61,7 @@ func createTables() {
 			token_expiry TIMESTAMP NULL,
 			capacity_total BIGINT DEFAULT 0,
 			capacity_used BIGINT DEFAULT 0,
+			route_storage_folder_id VARCHAR(255) NULL,
 			is_active BOOLEAN DEFAULT TRUE,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -102,6 +103,7 @@ func createTables() {
 
 	DB.Exec("ALTER TABLE files ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at")
 	DB.Exec("ALTER TABLE files ADD COLUMN upload_progress INT DEFAULT 100 AFTER status")
+	DB.Exec("ALTER TABLE drive_accounts ADD COLUMN route_storage_folder_id VARCHAR(255) NULL AFTER capacity_used")
 }
 
 func getEnv(key, fallback string) string {

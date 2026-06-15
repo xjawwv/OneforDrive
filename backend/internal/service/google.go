@@ -1,11 +1,14 @@
 package service
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"net/url"
 	"os"
 	"strconv"
@@ -188,15 +191,16 @@ func GetValidAccessToken(db *sql.DB, userID int64) (string, error) {
 }
 
 type DriveAccountInfo struct {
-	ID        int64
-	Email     string
-	Capacity  int64
-	Used      int64
+	ID                    int64
+	Email                 string
+	Capacity              int64
+	Used                  int64
+	RouteStorageFolderID  string
 }
 
 func GetAllDriveAccounts(db *sql.DB, userID int64) ([]DriveAccountInfo, error) {
 	rows, err := db.Query(
-		"SELECT id, email, capacity_total, capacity_used FROM drive_accounts WHERE user_id = ? AND is_active = TRUE",
+		"SELECT id, email, capacity_total, capacity_used, COALESCE(route_storage_folder_id, '') FROM drive_accounts WHERE user_id = ? AND is_active = TRUE",
 		userID,
 	)
 	if err != nil {
@@ -207,7 +211,7 @@ func GetAllDriveAccounts(db *sql.DB, userID int64) ([]DriveAccountInfo, error) {
 	var accounts []DriveAccountInfo
 	for rows.Next() {
 		var a DriveAccountInfo
-		if err := rows.Scan(&a.ID, &a.Email, &a.Capacity, &a.Used); err == nil {
+		if err := rows.Scan(&a.ID, &a.Email, &a.Capacity, &a.Used, &a.RouteStorageFolderID); err == nil {
 			accounts = append(accounts, a)
 		}
 	}
@@ -280,6 +284,97 @@ func UpdateAccountUsage(db *sql.DB, accountID int64, delta int64) {
 		"UPDATE drive_accounts SET capacity_used = capacity_used + ? WHERE id = ? AND capacity_used + ? >= 0",
 		delta, accountID, delta,
 	)
+}
+
+func CreateRouteStorageFolder(accessToken string) (string, error) {
+	existingID, err := findRouteStorageFolder(accessToken)
+	if err == nil && existingID != "" {
+		return existingID, nil
+	}
+
+	metadata := map[string]interface{}{
+		"name":     "RouteStorage",
+		"mimeType": "application/vnd.google-apps.folder",
+	}
+	metaJSON, _ := json.Marshal(metadata)
+
+	resp, err := http.PostForm("https://www.googleapis.com/drive/v3/files",
+		url.Values{
+			"uploadType": {"multipart"},
+		},
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to create folder request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	metadataPart, _ := writer.CreatePart(textproto.MIMEHeader{
+		"Content-Type":        {"application/json; charset=UTF-8"},
+		"Content-Disposition": {"form-data; name=\"metadata\""},
+	})
+	metadataPart.Write(metaJSON)
+
+	part, _ := writer.CreatePart(textproto.MIMEHeader{
+		"Content-Type":        {"application/vnd.google-apps.folder"},
+		"Content-Disposition": {"form-data; name=\"file\"; filename=\"meta\""},
+	})
+	part.Write([]byte(" "))
+	writer.Close()
+
+	req, err := http.NewRequest("POST", "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", body)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	resp2, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to create folder: %w", err)
+	}
+	defer resp2.Body.Close()
+
+	respBody, _ := io.ReadAll(resp2.Body)
+	if resp2.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("create folder error (%d): %s", resp2.StatusCode, string(respBody))
+	}
+
+	var result struct {
+		ID string `json:"id"`
+	}
+	json.Unmarshal(respBody, &result)
+
+	return result.ID, nil
+}
+
+func findRouteStorageFolder(accessToken string) (string, error) {
+	req, err := http.NewRequest("GET", "https://www.googleapis.com/drive/v3/files?q=name%3D%27RouteStorage%27+and+mimeType%3D%27application/vnd.google-apps.folder%27+and+trashed%3Dfalse&fields=files(id)", nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	var result struct {
+		Files []struct {
+			ID string `json:"id"`
+		} `json:"files"`
+	}
+	json.Unmarshal(body, &result)
+
+	if len(result.Files) > 0 {
+		return result.Files[0].ID, nil
+	}
+	return "", fmt.Errorf("not found")
 }
 
 func getEnv(key, fallback string) string {
