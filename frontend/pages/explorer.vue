@@ -118,86 +118,88 @@
       </div>
     </Transition>
 
-    <Transition name="upload-panel">
-      <div v-if="uploads.length" class="upload-panel" :style="activeDownloads.length ? { bottom: '16rem' } : {}">
-        <div class="upload-panel-header">
-          <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <Upload :size="14" style="color: var(--color-brand-500);" />
-            <span style="font-size: 0.8125rem; font-weight: 600; color: var(--color-text-primary);">
-              {{ uploadingCount ? `Uploading ${uploadingCount} file${uploadingCount > 1 ? 's' : ''}...` : `Uploaded ${completedCount} file${completedCount > 1 ? 's' : ''}` }}
-            </span>
-          </div>
-          <button class="upload-panel-close" @click="clearCompletedUploads" v-if="!uploadingCount">
-            <X :size="14" />
-          </button>
-        </div>
-        <div class="upload-panel-body">
-          <div v-for="upload in uploads" :key="upload.id" class="upload-item">
-            <div class="upload-item-icon">
-              <File :size="14" />
+    <div class="panels-container">
+      <Transition name="upload-panel">
+        <div v-if="uploads.length" class="upload-panel">
+          <div class="upload-panel-header">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <Upload :size="14" style="color: var(--color-brand-500);" />
+              <span style="font-size: 0.8125rem; font-weight: 600; color: var(--color-text-primary);">
+                {{ uploadingCount ? `Uploading ${uploadingCount} file${uploadingCount > 1 ? 's' : ''}...` : `Uploaded ${completedCount} file${completedCount > 1 ? 's' : ''}` }}
+              </span>
             </div>
-            <div class="upload-item-info">
-              <div class="upload-item-name">{{ upload.name }}</div>
-              <div class="upload-item-meta">
-                <span v-if="upload.status === 'uploading'">{{ upload.percent }}% - {{ formatSize(upload.loaded) }} of {{ formatSize(upload.total) }}</span>
-                <span v-else-if="upload.status === 'done'" style="color: var(--color-success);">Done</span>
-                <span v-else-if="upload.status === 'error'" style="color: var(--color-danger);">Failed</span>
-                <span v-else-if="upload.status === 'queued'" style="color: var(--color-text-muted);">Waiting...</span>
+            <button class="upload-panel-close" @click="clearCompletedUploads" v-if="!uploadingCount">
+              <X :size="14" />
+            </button>
+          </div>
+          <div class="upload-panel-body">
+            <div v-for="upload in uploads" :key="upload.id" class="upload-item">
+              <div class="upload-item-icon">
+                <File :size="14" />
               </div>
-              <div class="upload-item-progress">
-                <div class="upload-item-progress-track">
-                  <div
-                    class="upload-item-progress-fill"
-                    :class="{ 'fill-error': upload.status === 'error', 'fill-done': upload.status === 'done' }"
-                    :style="{ width: upload.percent + '%' }"
-                  ></div>
+              <div class="upload-item-info">
+                <div class="upload-item-name">{{ upload.name }}</div>
+                <div class="upload-item-meta">
+                  <span v-if="upload.status === 'uploading'">{{ upload.percent }}% - {{ formatSize(upload.loaded) }} of {{ formatSize(upload.total) }}</span>
+                  <span v-else-if="upload.status === 'done'" style="color: var(--color-success);">Done</span>
+                  <span v-else-if="upload.status === 'error'" style="color: var(--color-danger);">Failed</span>
+                  <span v-else-if="upload.status === 'queued'" style="color: var(--color-text-muted);">Waiting...</span>
+                </div>
+                <div class="upload-item-progress">
+                  <div class="upload-item-progress-track">
+                    <div
+                      class="upload-item-progress-fill"
+                      :class="{ 'fill-error': upload.status === 'error', 'fill-done': upload.status === 'done' }"
+                      :style="{ width: upload.percent + '%' }"
+                    ></div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
-    </Transition>
+      </Transition>
 
-    <Transition name="upload-panel">
-      <div v-if="activeDownloads.length" class="download-panel">
-        <div class="upload-panel-header">
-          <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <Download :size="14" style="color: var(--color-brand-500);" />
-            <span style="font-size: 0.8125rem; font-weight: 600; color: var(--color-text-primary);">
-              {{ activeDownloads.some(d => d.status === 'downloading') ? `Downloading...` : `Downloaded ${activeDownloads.length} file${activeDownloads.length > 1 ? 's' : ''}` }}
-            </span>
-          </div>
-          <button class="upload-panel-close" @click="clearCompletedDownloads" v-if="!activeDownloads.some(d => d.status === 'downloading')">
-            <X :size="14" />
-          </button>
-        </div>
-        <div class="upload-panel-body">
-          <div v-for="dl in activeDownloads" :key="dl.id" class="upload-item">
-            <div class="upload-item-icon">
-              <Download :size="14" />
+      <Transition name="upload-panel">
+        <div v-if="activeDownloads.length" class="download-panel">
+          <div class="upload-panel-header">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <Download :size="14" style="color: var(--color-brand-500);" />
+              <span style="font-size: 0.8125rem; font-weight: 600; color: var(--color-text-primary);">
+                {{ activeDownloads.some(d => d.status === 'downloading') ? `Downloading...` : `Downloaded ${activeDownloads.length} file${activeDownloads.length > 1 ? 's' : ''}` }}
+              </span>
             </div>
-            <div class="upload-item-info">
-              <div class="upload-item-name">{{ dl.fileName }}</div>
-              <div class="upload-item-meta">
-                <span v-if="dl.status === 'downloading'">{{ dl.progress }}% - {{ dl.chunksDone }} / {{ dl.chunksTotal }} chunks</span>
-                <span v-else-if="dl.status === 'done'" style="color: var(--color-success);">Done</span>
-                <span v-else-if="dl.status === 'error'" style="color: var(--color-danger);">Failed</span>
+            <button class="upload-panel-close" @click="clearCompletedDownloads" v-if="!activeDownloads.some(d => d.status === 'downloading')">
+              <X :size="14" />
+            </button>
+          </div>
+          <div class="upload-panel-body">
+            <div v-for="dl in activeDownloads" :key="dl.id" class="upload-item">
+              <div class="upload-item-icon">
+                <Download :size="14" />
               </div>
-              <div class="upload-item-progress">
-                <div class="upload-item-progress-track">
-                  <div
-                    class="upload-item-progress-fill"
-                    :class="{ 'fill-error': dl.status === 'error', 'fill-done': dl.status === 'done' }"
-                    :style="{ width: dl.progress + '%' }"
-                  ></div>
+              <div class="upload-item-info">
+                <div class="upload-item-name">{{ dl.fileName }}</div>
+                <div class="upload-item-meta">
+                  <span v-if="dl.status === 'downloading'">{{ dl.progress }}% - {{ dl.chunksDone }} / {{ dl.chunksTotal }} chunks</span>
+                  <span v-else-if="dl.status === 'done'" style="color: var(--color-success);">Done</span>
+                  <span v-else-if="dl.status === 'error'" style="color: var(--color-danger);">Failed</span>
+                </div>
+                <div class="upload-item-progress">
+                  <div class="upload-item-progress-track">
+                    <div
+                      class="upload-item-progress-fill"
+                      :class="{ 'fill-error': dl.status === 'error', 'fill-done': dl.status === 'done' }"
+                      :style="{ width: dl.progress + '%' }"
+                    ></div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
-    </Transition>
+      </Transition>
+    </div>
   </div>
 </template>
 
@@ -892,29 +894,30 @@ onMounted(async () => {
   background-color: rgba(76, 110, 245, 0.06);
 }
 
-.upload-panel {
+.panels-container {
   position: fixed;
   bottom: 1.5rem;
   right: 1.5rem;
+  display: flex;
+  gap: 0.75rem;
+  z-index: 100;
+}
+
+.upload-panel {
   width: 360px;
   background-color: var(--color-surface-0);
   border: 1px solid var(--color-surface-3);
   border-radius: 0.75rem;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
-  z-index: 100;
   overflow: hidden;
 }
 
 .download-panel {
-  position: fixed;
-  bottom: 1.5rem;
-  right: 1.5rem;
   width: 360px;
   background-color: var(--color-surface-0);
   border: 1px solid var(--color-surface-3);
   border-radius: 0.75rem;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
-  z-index: 101;
   overflow: hidden;
 }
 
