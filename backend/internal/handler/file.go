@@ -3,10 +3,7 @@ package handler
 import (
 	"database/sql"
 	"fmt"
-	"io"
-	"log"
 	"net/http"
-	"sort"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -53,113 +50,6 @@ func (h *FileHandler) GetFiles(c *gin.Context) {
 		files = []model.FileEntry{}
 	}
 	c.JSON(http.StatusOK, files)
-}
-
-type chunkInfo struct {
-	ChunkIndex  int
-	DriveFileID string
-	AccountID   int64
-	ChunkSize   int64
-}
-
-func (h *FileHandler) DownloadFile(c *gin.Context) {
-	userID := c.GetInt64("user_id")
-	id := c.Param("id")
-
-	var f model.FileEntry
-	err := h.DB.QueryRow(
-		"SELECT id, name, mime_type, size_total FROM files WHERE id = ? AND user_id = ?",
-		id, userID,
-	).Scan(&f.ID, &f.Name, &f.MimeType, &f.SizeTotal)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
-		return
-	}
-
-	rows, err := h.DB.Query(
-		"SELECT chunk_index, drive_file_id, account_id, chunk_size FROM file_chunks WHERE file_id = ? ORDER BY chunk_index ASC",
-		f.ID,
-	)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "no chunks found"})
-		return
-	}
-	defer rows.Close()
-
-	var chunks []chunkInfo
-	for rows.Next() {
-		var ch chunkInfo
-		if err := rows.Scan(&ch.ChunkIndex, &ch.DriveFileID, &ch.AccountID, &ch.ChunkSize); err == nil {
-			chunks = append(chunks, ch)
-		}
-	}
-
-	if len(chunks) == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "no drive files associated"})
-		return
-	}
-
-	sort.Slice(chunks, func(i, j int) bool {
-		return chunks[i].ChunkIndex < chunks[j].ChunkIndex
-	})
-
-	type chunkData struct {
-		data []byte
-		err  error
-		done chan struct{}
-	}
-
-	results := make([]chunkData, len(chunks))
-	for i := range results {
-		results[i].done = make(chan struct{})
-	}
-
-	for i, ch := range chunks {
-		go func(idx int, ci chunkInfo) {
-			defer close(results[idx].done)
-
-			accessToken, err := service.GetAccessTokenForAccount(h.DB, ci.AccountID)
-			if err != nil {
-				results[idx].err = fmt.Errorf("token error chunk %d: %w", ci.ChunkIndex, err)
-				return
-			}
-
-			driveURL := fmt.Sprintf("https://www.googleapis.com/drive/v3/files/%s?alt=media", ci.DriveFileID)
-			req, err := http.NewRequest("GET", driveURL, nil)
-			if err != nil {
-				results[idx].err = err
-				return
-			}
-			req.Header.Set("Authorization", "Bearer "+accessToken)
-
-			resp, err := http.DefaultClient.Do(req)
-			if err != nil {
-				results[idx].err = fmt.Errorf("drive download failed chunk %d: %w", ci.ChunkIndex, err)
-				return
-			}
-			defer resp.Body.Close()
-
-			data, err := io.ReadAll(resp.Body)
-			results[idx].data = data
-			results[idx].err = err
-		}(i, ch)
-	}
-
-	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, f.Name))
-	c.Header("Content-Type", f.MimeType)
-	if f.SizeTotal > 0 {
-		c.Header("Content-Length", strconv.FormatInt(f.SizeTotal, 10))
-	}
-	c.Status(http.StatusOK)
-
-	for _, res := range results {
-		<-res.done
-		if res.err != nil {
-			log.Printf("Chunk download error: %v", res.err)
-			continue
-		}
-		c.Writer.Write(res.data)
-	}
 }
 
 func (h *FileHandler) DeleteFile(c *gin.Context) {

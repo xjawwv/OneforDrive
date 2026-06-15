@@ -301,29 +301,7 @@ const executeDelete = async () => {
 }
 
 const downloadFile = async (id: number) => {
-  try {
-    const token = localStorage.getItem('token')
-    const resp = await fetch(`${useRuntimeConfig().public.apiBase}/api/files/${id}/download`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({ error: 'Download failed' }))
-      alert(err.error || 'Download failed')
-      return
-    }
-    const blob = await resp.blob()
-    const disposition = resp.headers.get('Content-Disposition') || ''
-    const nameMatch = disposition.match(/filename="?([^"]+)"?/)
-    const filename = nameMatch ? nameMatch[1] : 'download'
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    a.click()
-    URL.revokeObjectURL(url)
-  } catch (e: any) {
-    alert(e.message || 'Download failed')
-  }
+  router.push(`/download/${id}`)
 }
 
 const uploadFile = (file: File) => {
