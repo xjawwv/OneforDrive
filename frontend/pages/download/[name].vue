@@ -76,7 +76,11 @@ onMounted(async () => {
     if (!localStorage.getItem('token')) { navigateTo('/login'); return }
   }
 
-  const fileNameParam = decodeURIComponent(route.params.name as string)
+  const nameParam = Array.isArray(route.params.name)
+    ? route.params.name.join('/')
+    : (route.params.name as string)
+  const fileNameParam = decodeURIComponent(nameParam || '')
+
   if (!fileNameParam) {
     status.value = 'error'
     errorMsg.value = 'No file specified'

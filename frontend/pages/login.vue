@@ -128,6 +128,15 @@ definePageMeta({ layout: false })
 
 const { apiFetch } = useApi()
 
+onMounted(() => {
+  if (import.meta.client) {
+    const token = localStorage.getItem('token')
+    if (token) {
+      navigateTo('/explorer')
+    }
+  }
+})
+
 const email = ref('')
 const password = ref('')
 const name = ref('')
