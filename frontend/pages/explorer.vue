@@ -122,8 +122,12 @@
             <!-- Large icons -->
             <div v-else-if="viewMode === 'large'" class="file-grid-large">
               <div v-for="file in files" :key="file.id" class="file-card-large" @dblclick="file.is_folder ? navigateToFolder(file.id) : null">
-                <div class="file-card-icon-large" :class="file.is_folder ? 'file-icon-folder' : 'file-icon-file'">
+                <div class="file-card-icon-large" :class="file.is_folder ? 'file-icon-folder' : `file-type-${isImage(file) ? 'image' : isVideo(file) ? 'video' : isAudio(file) ? 'audio' : isDoc(file) ? 'doc' : 'file'}`">
                   <Folder v-if="file.is_folder" :size="36" />
+                  <Image v-else-if="isImage(file)" :size="36" />
+                  <Film v-else-if="isVideo(file)" :size="36" />
+                  <Music v-else-if="isAudio(file)" :size="36" />
+                  <FileText v-else-if="isDoc(file)" :size="36" />
                   <File v-else :size="36" />
                 </div>
                 <span class="file-card-name" :class="{ 'folder-name': file.is_folder }" @click="file.is_folder ? navigateToFolder(file.id) : null">{{ file.name }}</span>
@@ -137,8 +141,12 @@
             <!-- Medium icons -->
             <div v-else-if="viewMode === 'medium'" class="file-grid-medium">
               <div v-for="file in files" :key="file.id" class="file-card-medium" @dblclick="file.is_folder ? navigateToFolder(file.id) : null">
-                <div class="file-card-icon-medium" :class="file.is_folder ? 'file-icon-folder' : 'file-icon-file'">
+                <div class="file-card-icon-medium" :class="file.is_folder ? 'file-icon-folder' : `file-type-${isImage(file) ? 'image' : isVideo(file) ? 'video' : isAudio(file) ? 'audio' : isDoc(file) ? 'doc' : 'file'}`">
                   <Folder v-if="file.is_folder" :size="24" />
+                  <Image v-else-if="isImage(file)" :size="24" />
+                  <Film v-else-if="isVideo(file)" :size="24" />
+                  <Music v-else-if="isAudio(file)" :size="24" />
+                  <FileText v-else-if="isDoc(file)" :size="24" />
                   <File v-else :size="24" />
                 </div>
                 <span class="file-card-name-sm" :class="{ 'folder-name': file.is_folder }" @click="file.is_folder ? navigateToFolder(file.id) : null">{{ file.name }}</span>
@@ -270,7 +278,7 @@
 </template>
 
 <script setup lang="ts">
-import { FolderOpen, FolderPlus, Upload, Folder, File, Trash2, Download, ChevronRight, Home, Loader2, X, AlertTriangle, LayoutGrid, List, LayoutList, Grip } from 'lucide-vue-next'
+import { FolderOpen, FolderPlus, Upload, Folder, File, Trash2, Download, ChevronRight, Home, Loader2, X, AlertTriangle, LayoutGrid, List, LayoutList, Grip, Image, Film, Music, FileText } from 'lucide-vue-next'
 
 definePageMeta({ layout: false })
 
@@ -312,6 +320,18 @@ const setViewMode = (mode: string) => {
 }
 
 const currentViewIcon = computed(() => viewModes.find(v => v.id === viewMode.value)?.icon || LayoutList)
+
+const imageExtensions = ['jpg','jpeg','png','gif','webp','bmp','svg','ico']
+const videoExtensions = ['mp4','avi','mkv','mov','wmv','flv','webm']
+const audioExtensions = ['mp3','wav','ogg','flac','aac','m4a']
+const docExtensions = ['pdf','doc','docx','xls','xlsx','ppt','pptx','txt','csv']
+
+const getFileExt = (name: string) => name.split('.').pop()?.toLowerCase() || ''
+
+const isImage = (file: any) => !file.is_folder && imageExtensions.includes(getFileExt(file.name))
+const isVideo = (file: any) => !file.is_folder && videoExtensions.includes(getFileExt(file.name))
+const isAudio = (file: any) => !file.is_folder && audioExtensions.includes(getFileExt(file.name))
+const isDoc = (file: any) => !file.is_folder && docExtensions.includes(getFileExt(file.name))
 let dragCounter = 0
 
 const showDeleteConfirm = ref(false)
@@ -906,6 +926,26 @@ onMounted(async () => {
 .file-icon-file {
   background-color: var(--color-surface-2);
   color: var(--color-text-muted);
+}
+
+.file-type-image {
+  background-color: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+}
+
+.file-type-video {
+  background-color: rgba(168, 85, 247, 0.1);
+  color: #a855f7;
+}
+
+.file-type-audio {
+  background-color: rgba(249, 115, 22, 0.1);
+  color: #f97316;
+}
+
+.file-type-doc {
+  background-color: rgba(34, 197, 94, 0.1);
+  color: #22c55e;
 }
 
 .file-name {
