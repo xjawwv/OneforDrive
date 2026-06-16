@@ -1267,22 +1267,37 @@ onMounted(async () => {
 }
 
 @media (max-width: 768px) {
-  .file-col-date {
-    width: 90px;
-    font-size: 0.6875rem;
-  }
-
-  .file-col-size {
-    width: 80px;
-    font-size: 0.75rem;
+  .file-list-header {
+    display: none;
   }
 
   .file-row {
+    flex-wrap: wrap;
     padding: 0.75rem 0.5rem;
+    gap: 0;
+  }
+
+  .file-col-name {
+    flex: 1 1 55%;
+    min-width: 0;
+  }
+
+  .file-col-size {
+    flex: 0 0 auto;
+    font-size: 0.75rem;
+    text-align: right;
+  }
+
+  .file-col-date {
+    width: 100%;
+    font-size: 0.6875rem;
+    text-align: left;
+    padding-top: 0.125rem;
   }
 
   .file-col-actions {
     opacity: 1;
+    flex: 0 0 auto;
   }
 }
 
