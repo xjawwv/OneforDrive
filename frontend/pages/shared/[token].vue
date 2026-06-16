@@ -22,7 +22,7 @@
         <span class="shared-brand">RouteStorage</span>
       </div>
 
-      <div class="shared-card">
+      <div class="shared-card" :class="{ 'shared-card-wide': fileInfo.is_folder }">
         <div class="shared-preview">
           <template v-if="isImage">
             <img :src="thumbnailUrl" class="shared-image" />
@@ -44,8 +44,19 @@
           <div class="shared-meta">
             <span v-if="!fileInfo.is_folder">{{ formatSize(fileInfo.size) }}</span>
             <span v-if="!fileInfo.is_folder && fileInfo.size"> · </span>
-            <span>{{ fileInfo.is_folder ? 'Folder' : fileInfo.mime_type }}</span>
+            <span>{{ fileInfo.is_folder ? `${children.length} item${children.length !== 1 ? 's' : ''}` : fileInfo.mime_type }}</span>
             <span v-if="expiresAt"> · Expires {{ formatDate(expiresAt) }}</span>
+          </div>
+        </div>
+
+        <div v-if="fileInfo.is_folder && children.length" class="shared-folder-list">
+          <div v-for="child in children" :key="child.id" class="shared-folder-item">
+            <div class="shared-folder-icon" :class="child.is_folder ? 'folder-icon' : 'file-icon'">
+              <Folder v-if="child.is_folder" :size="18" />
+              <File v-else :size="18" />
+            </div>
+            <span class="shared-folder-name">{{ child.name }}</span>
+            <span class="shared-folder-size">{{ child.is_folder ? '--' : formatSize(child.size) }}</span>
           </div>
         </div>
 
@@ -79,6 +90,7 @@ const router = useRouter()
 const loading = ref(true)
 const error = ref('')
 const fileInfo = ref<any>(null)
+const children = ref<any[]>([])
 const expiresAt = ref('')
 const token = ref('')
 
@@ -121,6 +133,7 @@ onMounted(async () => {
   try {
     const resp = await $fetch<any>(`${useRuntimeConfig().public.apiBase}/shared/${token.value}`)
     fileInfo.value = resp.file
+    children.value = resp.children || []
     expiresAt.value = resp.expires_at
   } catch (e: any) {
     error.value = e.data?.error || 'Failed to load shared file'
@@ -218,6 +231,11 @@ onMounted(async () => {
   text-align: center;
 }
 
+.shared-card-wide {
+  max-width: 640px;
+  text-align: left;
+}
+
 .shared-preview {
   margin-bottom: 1.5rem;
   display: flex;
@@ -270,6 +288,50 @@ onMounted(async () => {
 .shared-download-btn {
   width: 100%;
   padding: 0.75rem 1.5rem;
+}
+
+.shared-folder-list {
+  margin: 1.25rem 0;
+  border: 1px solid var(--color-surface-2);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.shared-folder-item {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--color-surface-2);
+}
+
+.shared-folder-item:last-child {
+  border-bottom: none;
+}
+
+.shared-folder-icon {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.375rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.shared-folder-name {
+  flex: 1;
+  font-size: 0.8125rem;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shared-folder-size {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
 }
 
 .shared-footer {

@@ -176,10 +176,43 @@ func (h *ShareHandler) AccessShared(c *gin.Context) {
 		return
 	}
 
+	var children []gin.H
+	if f.IsFolder {
+		rows, err := h.DB.Query(
+			"SELECT id, name, mime_type, size_total, is_folder FROM files WHERE parent_id = ? ORDER BY is_folder DESC, name ASC",
+			fileID,
+		)
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				var child struct {
+					ID       int64
+					Name     string
+					MimeType string
+					Size     int64
+					IsFolder bool
+				}
+				if err := rows.Scan(&child.ID, &child.Name, &child.MimeType, &child.Size, &child.IsFolder); err == nil {
+					children = append(children, gin.H{
+						"id":        child.ID,
+						"name":      child.Name,
+						"mime_type": child.MimeType,
+						"size":      child.Size,
+						"is_folder": child.IsFolder,
+					})
+				}
+			}
+		}
+		if children == nil {
+			children = []gin.H{}
+		}
+	}
+
 	frontendURL := getEnv("FRONTEND_URL", "http://localhost:3000")
 	c.JSON(http.StatusOK, gin.H{
-		"file":      f,
-		"token":     token,
+		"file":       f,
+		"children":   children,
+		"token":      token,
 		"expires_at": expiresAt.Time,
 		"shared_url": fmt.Sprintf("%s/shared/%s", frontendURL, token),
 	})
