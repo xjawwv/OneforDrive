@@ -7,9 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"path/filepath"
-	"sort"
 	"strconv"
 	"time"
 
@@ -348,15 +345,3 @@ func (h *ShareHandler) SharedThumbnail(c *gin.Context) {
 	c.Status(http.StatusOK)
 	io.Copy(c.Writer, resp.Body)
 }
-
-type getEnvFunc func(string, string) string
-
-func getEnv(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
-}
-
-var _ = filepath.Join
-var _ = strconv.Itoa

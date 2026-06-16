@@ -74,17 +74,12 @@ func main() {
 		files.DELETE("/download-cancel", fileH.CancelDownload)
 		files.GET("/:id/info", fileH.FileInfo)
 		files.GET("/:id/progress", fileH.UploadProgress)
+		files.POST("/:id/share", shareH.CreateShareLink)
+		files.GET("/:id/shares", shareH.GetShareLinks)
+		files.DELETE("/:id/share/:linkId", shareH.RevokeShareLink)
 	}
 
 	r.GET("/api/files/:id/thumbnail", fileH.Thumbnail)
-
-	share := r.Group("/api/files")
-	share.Use(middleware.AuthMiddleware(jwtSecret))
-	{
-		share.POST("/:id/share", shareH.CreateShareLink)
-		share.GET("/:id/shares", shareH.GetShareLinks)
-		share.DELETE("/:id/share/:linkId", shareH.RevokeShareLink)
-	}
 
 	r.GET("/shared/:token", shareH.AccessShared)
 	r.GET("/shared/:token/download", shareH.SharedDownload)
