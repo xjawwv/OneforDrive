@@ -53,7 +53,7 @@
         <h3>This folder is empty</h3>
       </div>
       <div v-for="child in children" :key="child.id" class="file-card-large">
-        <div class="file-card-icon-large" :class="child.is_folder ? 'file-icon-folder' : `file-type-${getChildType(child)}`">
+        <div class="file-card-icon-large" :class="child.is_folder ? 'file-icon-folder' : `file-type-${getChildType(child)}`" @click="openLightbox(child)">
           <template v-if="child.is_folder">
             <Folder :size="48" />
           </template>
@@ -71,11 +71,36 @@
         <div class="file-card-meta">{{ child.is_folder ? 'Folder' : formatSize(child.size) }}</div>
       </div>
     </div>
+
+    <Transition name="modal">
+      <div v-if="lightboxFile" class="lightbox-overlay">
+        <div class="lightbox-header">
+          <button class="lightbox-close" @click="closeLightbox"><X :size="20" /></button>
+          <div class="lightbox-file-info">
+            <div class="lightbox-file-icon">
+              <Image :size="16" />
+            </div>
+            <span class="lightbox-filename">{{ lightboxFile.name }}</span>
+          </div>
+          <div class="lightbox-actions">
+            <a :href="`${useRuntimeConfig().public.apiBase}/shared/${token}/download?child_id=${lightboxFile.id}`" class="lightbox-btn" title="Download"><Download :size="18" /></a>
+          </div>
+        </div>
+        <div class="lightbox-body" @click="closeLightbox">
+          <img :src="lightboxThumbnailUrl" class="lightbox-img" :style="{ transform: `scale(${lightboxZoom})` }" @click.stop @wheel.prevent="handleZoom" />
+        </div>
+        <div class="lightbox-footer">
+          <button class="lightbox-zoom-btn" @click="lightboxZoom = Math.max(0.25, lightboxZoom - 0.25)"><Minus :size="18" /></button>
+          <button class="lightbox-zoom-btn" @click="lightboxZoom = 1"><Search :size="18" /></button>
+          <button class="lightbox-zoom-btn" @click="lightboxZoom = Math.min(4, lightboxZoom + 0.25)"><Plus :size="18" /></button>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
 <script setup lang="ts">
-import { Folder, File, FolderOpen, Download, Loader2, AlertTriangle, Clock, Film, Music, FileText, Home } from 'lucide-vue-next'
+import { Folder, File, FolderOpen, Download, Loader2, AlertTriangle, Clock, Film, Music, FileText, Home, X, Minus, Plus, Search } from 'lucide-vue-next'
 
 definePageMeta({ layout: false })
 
@@ -87,6 +112,8 @@ const fileInfo = ref<any>(null)
 const children = ref<any[]>([])
 const expiresAt = ref('')
 const token = ref('')
+const lightboxFile = ref<any>(null)
+const lightboxZoom = ref(1)
 
 const imageExtensions = ['jpg','jpeg','png','gif','webp','bmp','svg','ico']
 const videoExtensions = ['mp4','avi','mkv','mov','wmv','flv','webm']
@@ -134,6 +161,26 @@ const formatDate = (dateStr: string) => {
 const downloadFile = () => {
   window.location.href = `${useRuntimeConfig().public.apiBase}/shared/${token.value}/download`
 }
+
+const openLightbox = (child: any) => {
+  if (child.is_folder || !isChildImage(child)) return
+  lightboxFile.value = child
+}
+
+const closeLightbox = () => {
+  lightboxFile.value = null
+  lightboxZoom.value = 1
+}
+
+const handleZoom = (e: WheelEvent) => {
+  if (e.deltaY < 0) lightboxZoom.value = Math.min(4, lightboxZoom.value + 0.1)
+  else lightboxZoom.value = Math.max(0.25, lightboxZoom.value - 0.1)
+}
+
+const lightboxThumbnailUrl = computed(() => {
+  if (!lightboxFile.value) return ''
+  return `${useRuntimeConfig().public.apiBase}/shared/${token.value}/thumbnail?child_id=${lightboxFile.value.id}`
+})
 
 onMounted(async () => {
   token.value = route.params.token as string
@@ -320,6 +367,133 @@ onMounted(async () => {
 }
 
 .btn-primary:hover { opacity: 0.9; }
+
+.lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: #1a1a2e;
+  display: flex;
+  flex-direction: column;
+  z-index: 300;
+}
+
+.lightbox-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 1rem;
+  background-color: #1a1a2e;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  z-index: 301;
+}
+
+.lightbox-close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  padding: 0.375rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease;
+}
+
+.lightbox-close:hover { background-color: rgba(255, 255, 255, 0.1); }
+
+.lightbox-file-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.lightbox-file-icon {
+  width: 1.75rem;
+  height: 1.75rem;
+  background-color: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+  border-radius: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.lightbox-filename {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.875rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lightbox-actions { display: flex; gap: 0.25rem; }
+
+.lightbox-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease;
+  text-decoration: none;
+}
+
+.lightbox-btn:hover { background-color: rgba(255, 255, 255, 0.1); }
+
+.lightbox-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.lightbox-img {
+  max-width: 85vw;
+  max-height: 80vh;
+  object-fit: contain;
+  transition: transform 0.2s ease;
+}
+
+.lightbox-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.75rem;
+  background-color: #1a1a2e;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  z-index: 301;
+}
+
+.lightbox-zoom-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease;
+}
+
+.lightbox-zoom-btn:hover { background-color: rgba(255, 255, 255, 0.1); }
+
+.modal-enter-active { transition: opacity 0.15s ease; }
+.modal-leave-active { transition: opacity 0.1s ease; }
+.modal-enter-from, .modal-leave-to { opacity: 0; }
 
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
