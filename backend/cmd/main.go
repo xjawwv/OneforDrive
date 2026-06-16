@@ -77,6 +77,7 @@ func main() {
 		files.POST("/:id/share", shareH.CreateShareLink)
 		files.GET("/:id/shares", shareH.GetShareLinks)
 		files.DELETE("/:id/share/:linkId", shareH.RevokeShareLink)
+		files.DELETE("/:id", fileH.DeleteFile)
 	}
 
 	r.GET("/api/files/:id/thumbnail", fileH.Thumbnail)
