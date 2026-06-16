@@ -1,89 +1,81 @@
 <template>
   <div class="shared-layout">
-    <div class="shared-sidebar">
-      <div class="sidebar-logo">
-        <HardDrive :size="20" color="white" />
-        <span>RouteStorage</span>
+    <header class="page-header">
+      <div class="breadcrumb">
+        <Home :size="14" class="bc-icon" />
+        <button class="breadcrumb-item active">
+          <Folder v-if="fileInfo?.is_folder" :size="14" />
+          <File v-else :size="14" />
+          <span>{{ fileInfo?.name || 'Shared file' }}</span>
+        </button>
       </div>
-      <div class="sidebar-info">
-        <p>Shared folder</p>
+      <div class="header-meta">
+        <span v-if="expiresAt" class="expiry-badge">
+          <Clock :size="12" />
+          Expires {{ formatDate(expiresAt) }}
+        </span>
+      </div>
+    </header>
+
+    <div v-if="loading" class="empty-state">
+      <Loader2 :size="24" class="spin" style="color: var(--color-text-muted);" />
+      <p style="margin-top: 0.75rem; font-size: 0.8125rem; color: var(--color-text-muted);">Loading shared file...</p>
+    </div>
+
+    <div v-else-if="error" class="empty-state">
+      <AlertTriangle :size="48" style="color: var(--color-danger); margin-bottom: 1rem;" />
+      <h3>{{ error }}</h3>
+      <p>The link may have expired or been revoked.</p>
+    </div>
+
+    <div v-else-if="fileInfo && !fileInfo.is_folder" class="file-grid-large">
+      <div class="file-card-large">
+        <div class="file-card-icon-large" :class="isImage ? 'file-type-image' : 'file-type-file'">
+          <template v-if="isImage">
+            <img :src="thumbnailUrl" class="file-thumb" />
+          </template>
+          <template v-else>
+            <File :size="48" />
+          </template>
+        </div>
+        <span class="file-card-name">{{ fileInfo.name }}</span>
+        <div class="file-card-meta">{{ formatSize(fileInfo.size) }} · {{ fileInfo.mime_type }}</div>
+        <button class="btn-primary shared-download-btn" @click="downloadFile">
+          <Download :size="16" />
+          <span>Download</span>
+        </button>
       </div>
     </div>
-    <div class="shared-main">
-      <header class="page-header">
-        <div class="breadcrumb">
-          <button class="breadcrumb-item active">
-            <Folder :size="14" />
-            <span>{{ fileInfo?.name || 'Loading...' }}</span>
-          </button>
-        </div>
-        <div class="header-meta">
-          <span v-if="expiresAt" class="expiry-badge">
-            <Clock :size="12" />
-            Expires {{ formatDate(expiresAt) }}
-          </span>
-        </div>
-      </header>
 
-      <div v-if="loading" class="empty-state">
-        <Loader2 :size="24" class="spin" style="color: var(--color-text-muted);" />
+    <div v-else-if="fileInfo && fileInfo.is_folder" class="file-grid-large">
+      <div v-if="children.length === 0" class="empty-state">
+        <FolderOpen :size="48" style="color: var(--color-surface-3); margin-bottom: 1rem;" />
+        <h3>This folder is empty</h3>
       </div>
-
-      <div v-else-if="error" class="empty-state">
-        <AlertTriangle :size="48" style="color: var(--color-danger); margin-bottom: 1rem;" />
-        <h3>{{ error }}</h3>
-        <p>The link may have expired or been revoked.</p>
-      </div>
-
-      <div v-else-if="fileInfo && !fileInfo.is_folder" class="file-grid-large">
-        <div class="file-card-large">
-          <div class="file-card-icon-large" :class="isImage ? 'file-type-image' : 'file-type-file'">
-            <template v-if="isImage">
-              <img :src="thumbnailUrl" class="file-thumb" />
-            </template>
-            <template v-else>
-              <File :size="48" />
-            </template>
-          </div>
-          <span class="file-card-name">{{ fileInfo.name }}</span>
-          <div class="file-card-meta">{{ formatSize(fileInfo.size) }} · {{ fileInfo.mime_type }}</div>
-          <button class="btn-primary shared-download-btn" @click="downloadFile">
-            <Download :size="16" />
-            <span>Download</span>
-          </button>
+      <div v-for="child in children" :key="child.id" class="file-card-large">
+        <div class="file-card-icon-large" :class="child.is_folder ? 'file-icon-folder' : `file-type-${getChildType(child)}`">
+          <template v-if="child.is_folder">
+            <Folder :size="48" />
+          </template>
+          <template v-else-if="isChildImage(child)">
+            <img :src="childThumbnailUrl(child.id)" class="file-thumb" @error="(e: any) => e.target.style.display='none'" crossorigin="anonymous" />
+          </template>
+          <template v-else>
+            <Film v-if="getChildType(child) === 'video'" :size="48" />
+            <Music v-else-if="getChildType(child) === 'audio'" :size="48" />
+            <FileText v-else-if="getChildType(child) === 'doc'" :size="48" />
+            <File v-else :size="48" />
+          </template>
         </div>
-      </div>
-
-      <div v-else-if="fileInfo && fileInfo.is_folder" class="file-grid-large">
-        <div v-if="children.length === 0" class="empty-state">
-          <FolderOpen :size="48" style="color: var(--color-surface-3); margin-bottom: 1rem;" />
-          <h3>This folder is empty</h3>
-        </div>
-        <div v-for="child in children" :key="child.id" class="file-card-large">
-          <div class="file-card-icon-large" :class="child.is_folder ? 'file-icon-folder' : `file-type-${getChildType(child)}`">
-            <template v-if="child.is_folder">
-              <Folder :size="48" />
-            </template>
-            <template v-else-if="isChildImage(child)">
-              <img :src="childThumbnailUrl(child.id)" class="file-thumb" @error="(e: any) => e.target.style.display='none'" crossorigin="anonymous" />
-            </template>
-            <template v-else>
-              <Film v-if="getChildType(child) === 'video'" :size="48" />
-              <Music v-else-if="getChildType(child) === 'audio'" :size="48" />
-              <FileText v-else-if="getChildType(child) === 'doc'" :size="48" />
-              <File v-else :size="48" />
-            </template>
-          </div>
-          <span class="file-card-name">{{ child.name }}</span>
-          <div class="file-card-meta">{{ child.is_folder ? 'Folder' : formatSize(child.size) }}</div>
-        </div>
+        <span class="file-card-name">{{ child.name }}</span>
+        <div class="file-card-meta">{{ child.is_folder ? 'Folder' : formatSize(child.size) }}</div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { HardDrive, Folder, File, FolderOpen, Download, Loader2, AlertTriangle, Clock, Film, Music, FileText, Image } from 'lucide-vue-next'
+import { Folder, File, FolderOpen, Download, Loader2, AlertTriangle, Clock, Film, Music, FileText, Home } from 'lucide-vue-next'
 
 definePageMeta({ layout: false })
 
@@ -166,40 +158,8 @@ onMounted(async () => {
 
 <style scoped>
 .shared-layout {
-  display: flex;
   min-height: 100vh;
   background-color: var(--color-surface-1);
-}
-
-.shared-sidebar {
-  width: 240px;
-  background-color: var(--color-surface-0);
-  border-right: 1px solid var(--color-surface-2);
-  padding: 1.5rem;
-  flex-shrink: 0;
-}
-
-.sidebar-logo {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 2rem;
-}
-
-.sidebar-logo span {
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--color-text-primary);
-}
-
-.sidebar-info p {
-  font-size: 0.8125rem;
-  color: var(--color-text-muted);
-  margin: 0;
-}
-
-.shared-main {
-  flex: 1;
   padding: 2rem 2.5rem;
 }
 
@@ -213,7 +173,11 @@ onMounted(async () => {
 .breadcrumb {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.375rem;
+}
+
+.bc-icon {
+  color: var(--color-text-muted);
 }
 
 .breadcrumb-item {
@@ -246,8 +210,8 @@ onMounted(async () => {
   align-items: center;
   gap: 0.375rem;
   font-size: 0.75rem;
-  color: var(--color-text-muted);
-  background-color: var(--color-surface-2);
+  color: var(--color-danger);
+  background-color: rgba(250, 82, 82, 0.1);
   padding: 0.375rem 0.625rem;
   border-radius: 9999px;
 }
@@ -301,35 +265,12 @@ onMounted(async () => {
   overflow: hidden;
 }
 
-.file-type-image {
-  background-color: rgba(59, 130, 246, 0.1);
-  color: #3b82f6;
-}
-
-.file-type-video {
-  background-color: rgba(168, 85, 247, 0.1);
-  color: #a855f7;
-}
-
-.file-type-audio {
-  background-color: rgba(249, 115, 22, 0.1);
-  color: #f97316;
-}
-
-.file-type-doc {
-  background-color: rgba(34, 197, 94, 0.1);
-  color: #22c55e;
-}
-
-.file-type-file {
-  background-color: var(--color-surface-2);
-  color: var(--color-text-muted);
-}
-
-.file-icon-folder {
-  background-color: rgba(76, 110, 245, 0.1);
-  color: var(--color-brand-600);
-}
+.file-type-image { background-color: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+.file-type-video { background-color: rgba(168, 85, 247, 0.1); color: #a855f7; }
+.file-type-audio { background-color: rgba(249, 115, 22, 0.1); color: #f97316; }
+.file-type-doc { background-color: rgba(34, 197, 94, 0.1); color: #22c55e; }
+.file-type-file { background-color: var(--color-surface-2); color: var(--color-text-muted); }
+.file-icon-folder { background-color: rgba(76, 110, 245, 0.1); color: var(--color-brand-600); }
 
 .file-thumb {
   width: 100%;
@@ -378,16 +319,8 @@ onMounted(async () => {
   transition: opacity 0.12s ease;
 }
 
-.btn-primary:hover {
-  opacity: 0.9;
-}
+.btn-primary:hover { opacity: 0.9; }
 
-.spin {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 </style>
