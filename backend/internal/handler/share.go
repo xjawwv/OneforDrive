@@ -162,11 +162,11 @@ func (h *ShareHandler) AccessShared(c *gin.Context) {
 	}
 
 	var f struct {
-		ID       int64
-		Name     string
-		MimeType string
-		Size     int64
-		IsFolder bool
+		ID       int64  `json:"id"`
+		Name     string `json:"name"`
+		MimeType string `json:"mime_type"`
+		Size     int64  `json:"size"`
+		IsFolder bool   `json:"is_folder"`
 	}
 	err = h.DB.QueryRow(
 		"SELECT id, name, mime_type, size_total, is_folder FROM files WHERE id = ?", fileID,
