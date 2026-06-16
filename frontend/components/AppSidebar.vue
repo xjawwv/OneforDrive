@@ -1,45 +1,41 @@
 <template>
   <div>
-    <button class="mobile-menu-btn" @click="toggleSidebar">
+    <button class="mobile-menu-btn" @click="sidebarOpen = true">
       <Menu :size="20" />
     </button>
-    <Transition name="sidebar">
-      <div v-if="sidebarOpen" class="sidebar-backdrop" @click="sidebarOpen = false"></div>
-    </Transition>
-    <Transition name="sidebar-slide">
-      <aside v-if="sidebarOpen" class="sidebar">
-        <div class="sidebar-header">
-          <div class="sidebar-logo">
-            <HardDrive :size="20" color="white" :stroke-width="2" />
-          </div>
-          <span class="sidebar-brand">RouteStorage</span>
-          <button class="sidebar-close" @click="sidebarOpen = false"><X :size="18" /></button>
+    <div v-if="sidebarOpen" class="sidebar-backdrop" @click="sidebarOpen = false"></div>
+    <aside class="sidebar" :class="{ 'sidebar-open': sidebarOpen }">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">
+          <HardDrive :size="20" color="white" :stroke-width="2" />
         </div>
+        <span class="sidebar-brand">RouteStorage</span>
+        <button class="sidebar-close" @click="sidebarOpen = false"><X :size="18" /></button>
+      </div>
 
-        <nav class="sidebar-nav">
-          <NuxtLink to="/explorer" class="sidebar-link" :class="{ active: current === 'explorer' }" @click="sidebarOpen = false">
-            <FolderOpen :size="18" />
-            <span>Explorer</span>
-          </NuxtLink>
-          <NuxtLink to="/settings" class="sidebar-link" :class="{ active: current === 'settings' }" @click="sidebarOpen = false">
-            <Settings :size="18" />
-            <span>Settings</span>
-          </NuxtLink>
-        </nav>
+      <nav class="sidebar-nav">
+        <NuxtLink to="/explorer" class="sidebar-link" :class="{ active: current === 'explorer' }" @click="sidebarOpen = false">
+          <FolderOpen :size="18" />
+          <span>Explorer</span>
+        </NuxtLink>
+        <NuxtLink to="/settings" class="sidebar-link" :class="{ active: current === 'settings' }" @click="sidebarOpen = false">
+          <Settings :size="18" />
+          <span>Settings</span>
+        </NuxtLink>
+      </nav>
 
-        <div class="sidebar-footer">
-          <div class="sidebar-user">
-            <div class="sidebar-avatar">
-              <User :size="16" />
-            </div>
-            <span class="sidebar-user-name">{{ userName }}</span>
+      <div class="sidebar-footer">
+        <div class="sidebar-user">
+          <div class="sidebar-avatar">
+            <User :size="16" />
           </div>
-          <button class="sidebar-logout" @click="logout" title="Sign out">
-            <LogOut :size="16" />
-          </button>
+          <span class="sidebar-user-name">{{ userName }}</span>
         </div>
-      </aside>
-    </Transition>
+        <button class="sidebar-logout" @click="logout" title="Sign out">
+          <LogOut :size="16" />
+        </button>
+      </div>
+    </aside>
   </div>
 </template>
 
@@ -49,10 +45,6 @@ import { HardDrive, FolderOpen, Settings, LogOut, User, Menu, X } from 'lucide-v
 const props = defineProps<{ current: string }>()
 
 const sidebarOpen = ref(false)
-
-const toggleSidebar = () => {
-  sidebarOpen.value = !sidebarOpen.value
-}
 
 const userName = computed(() => {
   if (import.meta.client) {
@@ -122,7 +114,13 @@ const logout = () => {
 
 @media (max-width: 768px) {
   .sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
     box-shadow: 4px 0 16px rgba(0, 0, 0, 0.15);
+  }
+
+  .sidebar.sidebar-open {
+    transform: translateX(0);
   }
 }
 
