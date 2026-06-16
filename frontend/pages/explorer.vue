@@ -1278,7 +1278,7 @@ onMounted(async () => {
   }
 
   .file-col-name {
-    flex: 1 1 55%;
+    flex: 1 1 auto;
     min-width: 0;
   }
 
