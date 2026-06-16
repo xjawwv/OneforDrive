@@ -88,11 +88,12 @@
                 <span class="file-col-actions"></span>
               </div>
               <div class="file-list">
-                <div v-for="file in files" :key="file.id" class="file-row" @click="file.is_folder ? navigateToFolder(file.id) : null">
+                <div v-for="file in files" :key="file.id" class="file-row" @click="isImage(file) ? openLightbox(file) : (file.is_folder ? navigateToFolder(file.id) : null)">
                   <div class="file-col-name">
-                    <div class="file-icon" :class="file.is_folder ? 'file-icon-folder' : 'file-icon-file'">
-                      <Folder v-if="file.is_folder" :size="16" />
-                      <File v-else :size="16" />
+                    <div class="file-icon" :class="file.is_folder ? 'file-icon-folder' : `file-type-${isImage(file) ? 'image' : 'file'}`">
+                      <template v-if="file.is_folder"><Folder :size="16" /></template>
+                      <template v-else-if="isImage(file)"><img :src="thumbnailUrl(file.id)" class="file-thumb-detail" @error="(e: any) => e.target.style.display='none'" crossorigin="anonymous" /></template>
+                      <template v-else><File :size="16" /></template>
                     </div>
                     <span class="file-name" :class="{ 'folder-name': file.is_folder }">{{ file.name }}</span>
                   </div>
@@ -109,12 +110,13 @@
 
             <!-- List view -->
             <div v-else-if="viewMode === 'list'" class="file-list-simple">
-              <div v-for="file in files" :key="file.id" class="file-row-simple" @dblclick="file.is_folder ? navigateToFolder(file.id) : null">
-                <div class="file-icon-sm" :class="file.is_folder ? 'file-icon-folder' : 'file-icon-file'">
-                  <Folder v-if="file.is_folder" :size="14" />
-                  <File v-else :size="14" />
+              <div v-for="file in files" :key="file.id" class="file-row-simple" @click="isImage(file) ? openLightbox(file) : (file.is_folder ? navigateToFolder(file.id) : null)">
+                <div class="file-icon-sm" :class="file.is_folder ? 'file-icon-folder' : `file-type-${isImage(file) ? 'image' : 'file'}`">
+                  <template v-if="file.is_folder"><Folder :size="14" /></template>
+                  <template v-else-if="isImage(file)"><img :src="thumbnailUrl(file.id)" class="file-thumb-sm" @error="(e: any) => e.target.style.display='none'" crossorigin="anonymous" /></template>
+                  <template v-else><File :size="14" /></template>
                 </div>
-                <span class="file-name" :class="{ 'folder-name': file.is_folder }" @click="file.is_folder ? navigateToFolder(file.id) : null">{{ file.name }}</span>
+                <span class="file-name" :class="{ 'folder-name': file.is_folder }">{{ file.name }}</span>
                 <div class="file-row-actions">
                   <button class="icon-btn" @click="openContextMenu($event, file)" title="More">
                     <MoreVertical :size="14" />
@@ -173,7 +175,7 @@
 
             <!-- Small icons -->
             <div v-else-if="viewMode === 'small'" class="file-grid-small">
-              <div v-for="file in files" :key="file.id" class="file-card-small" @click="file.is_folder ? navigateToFolder(file.id) : null">
+              <div v-for="file in files" :key="file.id" class="file-card-small" @click="isImage(file) ? openLightbox(file) : (file.is_folder ? navigateToFolder(file.id) : null)">
                 <div class="file-card-icon-sm" :class="file.is_folder ? 'file-icon-folder' : `file-type-${isImage(file) ? 'image' : 'file'}`">
                   <template v-if="file.is_folder">
                     <Folder :size="14" />
@@ -1331,6 +1333,14 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.file-thumb-detail {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 0.375rem;
 }
 
 .file-icon-folder {
