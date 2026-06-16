@@ -57,7 +57,7 @@
         </div>
       </div>
 
-      <div class="drop-zone" :class="{ 'drop-zone-active': isDragging }">
+      <div class="drop-zone" :class="{ 'drop-zone-active': isDragging }" @dragstart.prevent>
         <div v-if="isDragging" class="drop-overlay">
           <Upload :size="40" style="color: var(--color-brand-500);" />
           <p style="font-size: 1rem; font-weight: 600; color: var(--color-text-primary); margin: 0.75rem 0 0.25rem 0;">Drop files here</p>
