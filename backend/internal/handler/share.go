@@ -345,12 +345,19 @@ func (h *ShareHandler) SharedThumbnail(c *gin.Context) {
 		return
 	}
 
+	targetID := fileID
+	if childIDStr := c.Query("child_id"); childIDStr != "" {
+		if childID, parseErr := strconv.ParseInt(childIDStr, 10, 64); parseErr == nil {
+			targetID = childID
+		}
+	}
+
 	var driveFileID string
 	var accountID int64
 	var mimeType string
 	err = h.DB.QueryRow(
 		"SELECT fc.drive_file_id, fc.account_id, f.mime_type FROM file_chunks fc JOIN files f ON fc.file_id = f.id WHERE fc.file_id = ? ORDER BY fc.chunk_index ASC LIMIT 1",
-		fileID,
+		targetID,
 	).Scan(&driveFileID, &accountID, &mimeType)
 	if err != nil || driveFileID == "" {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
