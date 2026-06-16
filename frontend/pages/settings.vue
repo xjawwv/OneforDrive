@@ -161,8 +161,7 @@ onMounted(() => {
 @media (max-width: 768px) {
   .app-main {
     margin-left: 0;
-    padding: 1rem;
-    padding-top: 3.5rem;
+    padding: 0.75rem;
   }
 }
 
