@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"archive/zip"
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
@@ -236,13 +237,20 @@ func (h *ShareHandler) SharedDownload(c *gin.Context) {
 		return
 	}
 
+	targetID := fileID
+	if childIDStr := c.Query("child_id"); childIDStr != "" {
+		if childID, parseErr := strconv.ParseInt(childIDStr, 10, 64); parseErr == nil {
+			targetID = childID
+		}
+	}
+
 	var f struct {
 		Name     string
 		MimeType string
 		Size     int64
 	}
 	err = h.DB.QueryRow(
-		"SELECT name, mime_type, size_total FROM files WHERE id = ? AND is_folder = FALSE", fileID,
+		"SELECT name, mime_type, size_total FROM files WHERE id = ? AND is_folder = FALSE", targetID,
 	).Scan(&f.Name, &f.MimeType, &f.Size)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
@@ -251,7 +259,7 @@ func (h *ShareHandler) SharedDownload(c *gin.Context) {
 
 	rows, err := h.DB.Query(
 		"SELECT chunk_index, drive_file_id, account_id, chunk_size FROM file_chunks WHERE file_id = ? ORDER BY chunk_index ASC",
-		fileID,
+		targetID,
 	)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "no chunks found"})
@@ -384,4 +392,106 @@ func (h *ShareHandler) SharedThumbnail(c *gin.Context) {
 	c.Header("Cache-Control", "public, max-age=86400")
 	c.Status(http.StatusOK)
 	io.Copy(c.Writer, resp.Body)
+}
+
+func (h *ShareHandler) SharedDownloadAll(c *gin.Context) {
+	token := c.Param("token")
+
+	var fileID int64
+	var expiresAt sql.NullTime
+	err := h.DB.QueryRow(
+		"SELECT file_id, expires_at FROM shared_links WHERE token = ?", token,
+	).Scan(&fileID, &expiresAt)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "share link not found"})
+		return
+	}
+
+	if expiresAt.Valid && expiresAt.Time.Before(time.Now()) {
+		c.JSON(http.StatusGone, gin.H{"error": "share link has expired"})
+		return
+	}
+
+	var isFolder bool
+	var folderName string
+	h.DB.QueryRow("SELECT is_folder, name FROM files WHERE id = ?", fileID).Scan(&isFolder, &folderName)
+
+	var fileIDs []int64
+	if isFolder {
+		rows, _ := h.DB.Query("SELECT id FROM files WHERE parent_id = ? AND is_folder = FALSE", fileID)
+		if rows != nil {
+			defer rows.Close()
+			for rows.Next() {
+				var id int64
+				if rows.Scan(&id) == nil {
+					fileIDs = append(fileIDs, id)
+				}
+			}
+		}
+	} else {
+		fileIDs = append(fileIDs, fileID)
+	}
+
+	if len(fileIDs) == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "no files to download"})
+		return
+	}
+
+	zipName := folderName
+	if zipName == "" {
+		zipName = "download"
+	}
+	zipName += ".zip"
+
+	c.Header("Content-Type", "application/zip")
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, zipName))
+	c.Status(http.StatusOK)
+
+	zipWriter := zip.NewWriter(c.Writer)
+	defer zipWriter.Close()
+
+	for _, fid := range fileIDs {
+		var fname string
+		h.DB.QueryRow("SELECT name FROM files WHERE id = ?", fid).Scan(&fname)
+		if fname == "" {
+			continue
+		}
+
+		chunkRows, _ := h.DB.Query(
+			"SELECT chunk_index, drive_file_id, account_id FROM file_chunks WHERE file_id = ? ORDER BY chunk_index ASC", fid,
+		)
+		if chunkRows == nil {
+			continue
+		}
+
+		partWriter, err := zipWriter.Create(fname)
+		if err != nil {
+			chunkRows.Close()
+			continue
+		}
+
+		for chunkRows.Next() {
+			var driveFileID string
+			var accountID int64
+			if chunkRows.Scan(new(int), &driveFileID, &accountID) != nil {
+				continue
+			}
+
+			accessToken, err := service.GetAccessTokenForAccount(h.DB, accountID)
+			if err != nil {
+				continue
+			}
+
+			driveURL := fmt.Sprintf("https://www.googleapis.com/drive/v3/files/%s?alt=media", driveFileID)
+			req, _ := http.NewRequest("GET", driveURL, nil)
+			req.Header.Set("Authorization", "Bearer "+accessToken)
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				continue
+			}
+			io.Copy(partWriter, resp.Body)
+			resp.Body.Close()
+		}
+		chunkRows.Close()
+	}
 }

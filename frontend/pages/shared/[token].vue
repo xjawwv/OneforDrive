@@ -10,6 +10,14 @@
         </button>
       </div>
       <div class="header-meta">
+        <button v-if="fileInfo?.is_folder && children.length" class="btn-secondary-sm" @click="downloadAll">
+          <Download :size="14" />
+          <span>Download All</span>
+        </button>
+        <button v-if="fileInfo?.is_folder && children.length" class="btn-secondary-sm" @click="toggleSelectMode">
+          <CheckSquare :size="14" />
+          <span>{{ selectMode ? 'Cancel' : 'Select' }}</span>
+        </button>
         <span v-if="expiresAt" class="expiry-badge">
           <Clock :size="12" />
           Expires {{ formatDate(expiresAt) }}
@@ -52,8 +60,13 @@
         <FolderOpen :size="48" style="color: var(--color-surface-3); margin-bottom: 1rem;" />
         <h3>This folder is empty</h3>
       </div>
-      <div v-for="child in children" :key="child.id" class="file-card-large">
-        <div class="file-card-icon-large" :class="child.is_folder ? 'file-icon-folder' : `file-type-${getChildType(child)}`" @click="openLightbox(child)">
+      <div v-for="child in children" :key="child.id" class="file-card-large" :class="{ 'file-card-selected': selectMode && selectedIds.has(child.id) }" @click="selectMode && !child.is_folder ? toggleSelect(child.id) : openLightbox(child)">
+        <div v-if="selectMode && !child.is_folder" class="select-checkbox">
+          <div class="checkbox" :class="{ checked: selectedIds.has(child.id) }">
+            <Check v-if="selectedIds.has(child.id)" :size="12" />
+          </div>
+        </div>
+        <div class="file-card-icon-large" :class="child.is_folder ? 'file-icon-folder' : `file-type-${getChildType(child)}`">
           <template v-if="child.is_folder">
             <Folder :size="48" />
           </template>
@@ -102,7 +115,7 @@
 </template>
 
 <script setup lang="ts">
-import { Folder, File, FolderOpen, Download, Loader2, AlertTriangle, Clock, Film, Music, FileText, Home, X, Minus, Plus, Search, ChevronLeft, ChevronRight } from 'lucide-vue-next'
+import { Folder, File, FolderOpen, Download, Loader2, AlertTriangle, Clock, Film, Music, FileText, Home, X, Minus, Plus, Search, ChevronLeft, ChevronRight, CheckSquare, Check } from 'lucide-vue-next'
 
 definePageMeta({ layout: false })
 
@@ -121,6 +134,8 @@ const lightboxPanY = ref(0)
 const lightboxIndex = ref(0)
 const isPanning = ref(false)
 const panStart = ref({ x: 0, y: 0 })
+const selectedIds = ref<Set<number>>(new Set())
+const selectMode = ref(false)
 
 const imageExtensions = ['jpg','jpeg','png','gif','webp','bmp','svg','ico']
 const videoExtensions = ['mp4','avi','mkv','mov','wmv','flv','webm']
@@ -246,6 +261,42 @@ const prevImage = () => {
 const hasMultipleImages = computed(() => {
   return children.value.filter((c: any) => !c.is_folder && isChildImage(c)).length > 1
 })
+
+const toggleSelectMode = () => {
+  selectMode.value = !selectMode.value
+  if (!selectMode.value) selectedIds.value.clear()
+}
+
+const toggleSelect = (childId: number) => {
+  if (selectedIds.value.has(childId)) {
+    selectedIds.value.delete(childId)
+  } else {
+    selectedIds.value.add(childId)
+  }
+}
+
+const selectAll = () => {
+  const nonFolder = children.value.filter((c: any) => !c.is_folder)
+  if (selectedIds.value.size === nonFolder.length) {
+    selectedIds.value.clear()
+  } else {
+    nonFolder.forEach((c: any) => selectedIds.value.add(c.id))
+  }
+}
+
+const downloadSelected = () => {
+  const ids = Array.from(selectedIds.value)
+  if (ids.length === 0) return
+  if (ids.length === 1) {
+    window.location.href = `${useRuntimeConfig().public.apiBase}/shared/${token.value}/download?child_id=${ids[0]}`
+  } else {
+    window.location.href = `${useRuntimeConfig().public.apiBase}/shared/${token.value}/download-all`
+  }
+}
+
+const downloadAll = () => {
+  window.location.href = `${useRuntimeConfig().public.apiBase}/shared/${token.value}/download-all`
+}
 
 const lightboxThumbnailUrl = computed(() => {
   if (!lightboxFile.value) return ''
@@ -385,6 +436,7 @@ onMounted(async () => {
   border-radius: 0.5rem;
   cursor: default;
   transition: background-color 0.1s ease;
+  position: relative;
 }
 
 .file-card-large:hover {
@@ -457,6 +509,55 @@ onMounted(async () => {
 }
 
 .btn-primary:hover { opacity: 0.9; }
+
+.btn-secondary-sm {
+  background-color: var(--color-surface-0);
+  color: var(--color-text-secondary);
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.375rem;
+  font-weight: 500;
+  font-size: 0.75rem;
+  border: 1px solid var(--color-surface-3);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  transition: background-color 0.12s ease;
+}
+
+.btn-secondary-sm:hover { background-color: var(--color-surface-1); }
+
+.file-card-selected {
+  background-color: rgba(76, 110, 245, 0.08) !important;
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: -2px;
+}
+
+.select-checkbox {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 2;
+}
+
+.checkbox {
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid var(--color-surface-3);
+  border-radius: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--color-surface-0);
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.checkbox.checked {
+  background-color: var(--color-brand-500);
+  border-color: var(--color-brand-500);
+  color: white;
+}
 
 .lightbox-overlay {
   position: fixed;

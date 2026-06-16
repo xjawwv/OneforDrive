@@ -84,6 +84,7 @@ func main() {
 
 	r.GET("/shared/:token", shareH.AccessShared)
 	r.GET("/shared/:token/download", shareH.SharedDownload)
+	r.GET("/shared/:token/download-all", shareH.SharedDownloadAll)
 	r.GET("/shared/:token/thumbnail", shareH.SharedThumbnail)
 
 	port := getEnv("PORT", "8080")
