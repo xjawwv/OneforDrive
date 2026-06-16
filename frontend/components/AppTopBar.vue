@@ -108,10 +108,11 @@ if (import.meta.client) {
 .top-bar {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: 0.75rem 1rem;
+  gap: 0.75rem;
+  padding: 0.625rem 1rem;
   background-color: var(--color-surface-0);
   border-radius: 0.75rem;
+  flex-wrap: nowrap;
 }
 
 .hamburger-btn {
@@ -142,19 +143,26 @@ if (import.meta.client) {
 .top-bar-title {
   flex: 1;
   min-width: 0;
+  overflow: hidden;
 }
 
 .page-title {
-  font-size: 17px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--color-text-primary);
   letter-spacing: -0.025em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .page-subtitle {
   font-size: 11px;
   color: var(--color-text-muted);
   margin-top: 0.125rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .header-divider {
