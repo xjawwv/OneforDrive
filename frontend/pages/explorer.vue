@@ -88,18 +88,18 @@
                 <span class="file-col-actions"></span>
               </div>
               <div class="file-list">
-                <div v-for="file in files" :key="file.id" class="file-row" @dblclick="file.is_folder ? navigateToFolder(file.id) : null">
+                <div v-for="file in files" :key="file.id" class="file-row" @click="file.is_folder ? navigateToFolder(file.id) : null">
                   <div class="file-col-name">
                     <div class="file-icon" :class="file.is_folder ? 'file-icon-folder' : 'file-icon-file'">
                       <Folder v-if="file.is_folder" :size="16" />
                       <File v-else :size="16" />
                     </div>
-                    <span class="file-name" :class="{ 'folder-name': file.is_folder }" @click="file.is_folder ? navigateToFolder(file.id) : null">{{ file.name }}</span>
+                    <span class="file-name" :class="{ 'folder-name': file.is_folder }">{{ file.name }}</span>
                   </div>
                   <span class="file-col-size">{{ file.is_folder ? '--' : formatSize(file.size_total) }}</span>
                   <span class="file-col-date">{{ formatDate(file.updated_at) }}</span>
                   <div class="file-col-actions">
-                    <button class="icon-btn" @click="openContextMenu($event, file)" title="More">
+                    <button class="icon-btn" @click.stop="openContextMenu($event, file)" title="More">
                       <MoreVertical :size="14" />
                     </button>
                   </div>
@@ -1223,6 +1223,16 @@ onMounted(async () => {
 
 .file-row:hover .file-col-actions {
   opacity: 1;
+}
+
+@media (max-width: 768px) {
+  .file-row {
+    padding: 0.875rem 0.75rem;
+  }
+
+  .file-col-actions {
+    opacity: 1;
+  }
 }
 
 .file-icon {
