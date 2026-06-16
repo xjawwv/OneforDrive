@@ -36,6 +36,7 @@ func main() {
 	accountH := &handler.AccountHandler{DB: repository.DB}
 	fileH := &handler.FileHandler{DB: repository.DB}
 	storageH := &handler.StorageHandler{DB: repository.DB}
+	shareH := &handler.ShareHandler{DB: repository.DB}
 
 	auth := r.Group("/api/auth")
 	{
@@ -76,6 +77,18 @@ func main() {
 	}
 
 	r.GET("/api/files/:id/thumbnail", fileH.Thumbnail)
+
+	share := r.Group("/api/files")
+	share.Use(middleware.AuthMiddleware(jwtSecret))
+	{
+		share.POST("/:id/share", shareH.CreateShareLink)
+		share.GET("/:id/shares", shareH.GetShareLinks)
+		share.DELETE("/:id/share/:linkId", shareH.RevokeShareLink)
+	}
+
+	r.GET("/shared/:token", shareH.AccessShared)
+	r.GET("/shared/:token/download", shareH.SharedDownload)
+	r.GET("/shared/:token/thumbnail", shareH.SharedThumbnail)
 
 	port := getEnv("PORT", "8080")
 	log.Printf("Server starting on :%s", port)

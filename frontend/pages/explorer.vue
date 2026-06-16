@@ -99,6 +99,7 @@
                   <div class="file-col-actions">
                     <button class="icon-btn" @click="confirmDelete(file)" title="Delete"><Trash2 :size="14" /></button>
                     <button v-if="!file.is_folder" class="icon-btn" @click="downloadFile(file)" title="Download"><Download :size="14" /></button>
+                    <button class="icon-btn" @click="openShareDialog(file)" title="Share"><Share2 :size="14" /></button>
                   </div>
                 </div>
               </div>
@@ -191,6 +192,56 @@
           <div class="modal-actions">
             <button class="btn-secondary" @click="cancelDelete" style="height: 2.25rem;">Cancel</button>
             <button class="btn-danger" @click="executeDelete" style="height: 2.25rem;">Delete</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <Transition name="modal">
+      <div v-if="showShareDialog && shareTarget" class="modal-overlay" @click.self="closeShareDialog">
+        <div class="share-dialog">
+          <div class="share-dialog-header">
+            <Share2 :size="18" style="color: var(--color-brand-500);" />
+            <h3>Share "{{ shareTarget.name }}"</h3>
+            <button class="icon-btn" @click="closeShareDialog"><X :size="16" /></button>
+          </div>
+
+          <div class="share-create">
+            <select v-model="shareExpiry" class="share-select">
+              <option value="1h">Expires in 1 hour</option>
+              <option value="24h">Expires in 24 hours</option>
+              <option value="7d">Expires in 7 days</option>
+              <option value="30d">Expires in 30 days</option>
+              <option value="never">Never expires</option>
+            </select>
+            <button class="btn-primary" @click="createShareLink" :disabled="shareLoading" style="height: 2.25rem;">
+              <Loader2 v-if="shareLoading" :size="14" class="spin" />
+              <span v-else>Create Link</span>
+            </button>
+          </div>
+
+          <div v-if="shareLinks.length" class="share-links">
+            <div v-for="link in shareLinks" :key="link.id" class="share-link-item">
+              <div class="share-link-info">
+                <div class="share-link-url">{{ link.url }}</div>
+                <div class="share-link-meta">
+                  {{ link.expires_at ? `Expires ${formatDate(link.expires_at)}` : 'Never expires' }}
+                  <span v-if="!link.is_valid" style="color: var(--color-danger);"> · Expired</span>
+                </div>
+              </div>
+              <div class="share-link-actions">
+                <button class="icon-btn" @click="copyShareLink(link.url, link.id)" :title="copiedLinkId === link.id ? 'Copied!' : 'Copy link'">
+                  <Check v-if="copiedLinkId === link.id" :size="14" style="color: var(--color-success);" />
+                  <Copy v-else :size="14" />
+                </button>
+                <button class="icon-btn" @click="revokeShareLink(link.id)" title="Revoke">
+                  <Trash2 :size="14" />
+                </button>
+              </div>
+            </div>
+          </div>
+          <div v-else class="share-empty">
+            <p>No share links yet. Create one above.</p>
           </div>
         </div>
       </div>
@@ -315,7 +366,7 @@
 </template>
 
 <script setup lang="ts">
-import { FolderOpen, FolderPlus, Upload, Folder, File, Trash2, Download, ChevronRight, Home, Loader2, X, AlertTriangle, LayoutGrid, List, LayoutList, Grip, Image, Film, Music, FileText, Minus, Plus, Search } from 'lucide-vue-next'
+import { FolderOpen, FolderPlus, Upload, Folder, File, Trash2, Download, ChevronRight, Home, Loader2, X, AlertTriangle, LayoutGrid, List, LayoutList, Grip, Image, Film, Music, FileText, Minus, Plus, Search, Share2, Copy, Check } from 'lucide-vue-next'
 
 definePageMeta({ layout: false })
 
@@ -334,6 +385,12 @@ const viewMode = ref('details')
 const showViewMenu = ref(false)
 const lightboxFile = ref<any>(null)
 const lightboxZoom = ref(1)
+const showShareDialog = ref(false)
+const shareTarget = ref<any>(null)
+const shareLinks = ref<any[]>([])
+const shareExpiry = ref('24h')
+const shareLoading = ref(false)
+const copiedLinkId = ref<number | null>(null)
 
 const viewModes = [
   { id: 'details', label: 'Details', icon: LayoutList },
@@ -376,6 +433,52 @@ const handleZoom = (e: WheelEvent) => {
   } else {
     lightboxZoom.value = Math.max(0.25, lightboxZoom.value - 0.1)
   }
+}
+
+const openShareDialog = async (file: any) => {
+  shareTarget.value = file
+  shareExpiry.value = '24h'
+  shareLinks.value = []
+  showShareDialog.value = true
+  try {
+    const links = await apiFetch(`/api/files/${file.id}/shares`) as any[]
+    shareLinks.value = links
+  } catch {}
+}
+
+const createShareLink = async () => {
+  if (!shareTarget.value) return
+  shareLoading.value = true
+  try {
+    const resp = await apiFetch(`/api/files/${shareTarget.value.id}/share`, {
+      method: 'POST',
+      body: { expires_in: shareExpiry.value }
+    }) as any
+    shareLinks.value.unshift(resp)
+  } catch {}
+  shareLoading.value = false
+}
+
+const copyShareLink = async (url: string, linkId: number) => {
+  try {
+    await navigator.clipboard.writeText(url)
+    copiedLinkId.value = linkId
+    setTimeout(() => { copiedLinkId.value = null }, 2000)
+  } catch {}
+}
+
+const revokeShareLink = async (linkId: number) => {
+  if (!shareTarget.value) return
+  try {
+    await apiFetch(`/api/files/${shareTarget.value.id}/share/${linkId}`, { method: 'DELETE' })
+    shareLinks.value = shareLinks.value.filter(l => l.id !== linkId)
+  } catch {}
+}
+
+const closeShareDialog = () => {
+  showShareDialog.value = false
+  shareTarget.value = null
+  shareLinks.value = []
 }
 
 const imageExtensions = ['jpg','jpeg','png','gif','webp','bmp','svg','ico']
@@ -1369,6 +1472,106 @@ onMounted(async () => {
 .modal-enter-active { transition: opacity 0.15s ease; }
 .modal-leave-active { transition: opacity 0.1s ease; }
 .modal-enter-from, .modal-leave-to { opacity: 0; }
+
+.share-dialog {
+  background-color: var(--color-surface-0);
+  border-radius: 0.75rem;
+  padding: 0;
+  width: 480px;
+  max-width: 90vw;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.16);
+}
+
+.share-dialog-header {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--color-surface-2);
+}
+
+.share-dialog-header h3 {
+  flex: 1;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.share-create {
+  display: flex;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--color-surface-2);
+}
+
+.share-select {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-surface-3);
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--color-text-primary);
+  background-color: var(--color-surface-0);
+  cursor: pointer;
+}
+
+.share-links {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.share-link-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--color-surface-2);
+}
+
+.share-link-item:last-child {
+  border-bottom: none;
+}
+
+.share-link-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.share-link-url {
+  font-size: 0.75rem;
+  color: var(--color-brand-600);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-all;
+}
+
+.share-link-meta {
+  font-size: 0.6875rem;
+  color: var(--color-text-muted);
+  margin-top: 0.125rem;
+}
+
+.share-link-actions {
+  display: flex;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.share-empty {
+  padding: 1.5rem 1.25rem;
+  text-align: center;
+}
+
+.share-empty p {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  margin: 0;
+}
 
 .drop-zone {
   min-height: calc(100vh - 8rem);
