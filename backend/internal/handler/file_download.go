@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/routestorage/backend/internal/middleware"
 	"github.com/routestorage/backend/internal/service"
 )
 
@@ -299,7 +300,20 @@ func (h *FileHandler) CancelDownload(c *gin.Context) {
 }
 
 func (h *FileHandler) Thumbnail(c *gin.Context) {
-	userID := c.GetInt64("user_id")
+	var userID int64
+	if uid, exists := c.Get("user_id"); exists {
+		userID = uid.(int64)
+	} else if tokenStr := c.Query("token"); tokenStr != "" {
+		uid, err := middleware.ParseToken(tokenStr, []byte(getEnv("JWT_SECRET", "default-secret")))
+		if err == nil {
+			userID = uid
+		}
+	}
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
 	id := c.Param("id")
 
 	var driveFileID string

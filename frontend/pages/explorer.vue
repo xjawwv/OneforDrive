@@ -127,7 +127,7 @@
                     <Folder :size="36" />
                   </template>
                   <template v-else-if="isImage(file)">
-                    <img :src="`${apiBase}/api/files/${file.id}/thumbnail`" class="file-thumb" @error="(e: any) => e.target.style.display='none'" />
+                    <img :src="`${apiBase}/api/files/${file.id}/thumbnail?token=${localStorage.getItem('token')}`" class="file-thumb" @error="(e: any) => e.target.style.display='none'" crossorigin="anonymous" />
                   </template>
                   <template v-else>
                     <Film v-if="isVideo(file)" :size="36" />
@@ -152,7 +152,7 @@
                     <Folder :size="24" />
                   </template>
                   <template v-else-if="isImage(file)">
-                    <img :src="`${apiBase}/api/files/${file.id}/thumbnail`" class="file-thumb-sm" @error="(e: any) => e.target.style.display='none'" />
+                    <img :src="`${apiBase}/api/files/${file.id}/thumbnail?token=${localStorage.getItem('token')}`" class="file-thumb-sm" @error="(e: any) => e.target.style.display='none'" crossorigin="anonymous" />
                   </template>
                   <template v-else>
                     <Film v-if="isVideo(file)" :size="24" />
