@@ -1064,12 +1064,15 @@ onMounted(async () => {
   flex: 1;
   margin-left: 240px;
   padding: 2rem 2.5rem;
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 
 @media (max-width: 768px) {
   .app-main {
     margin-left: 0;
     padding: 0.75rem;
+    overflow-x: hidden;
   }
 }
 
@@ -1142,6 +1145,9 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 0.25rem;
+  min-width: 0;
+  overflow: hidden;
+  flex: 1;
 }
 
 .breadcrumb-item {
@@ -1167,6 +1173,10 @@ onMounted(async () => {
 .breadcrumb-item.active {
   color: var(--color-text-primary);
   font-weight: 600;
+  max-width: 120px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .breadcrumb-sep {
@@ -1206,6 +1216,8 @@ onMounted(async () => {
 .file-list {
   display: flex;
   flex-direction: column;
+  width: 100%;
+  overflow-x: hidden;
 }
 
 .file-row {
@@ -1214,6 +1226,8 @@ onMounted(async () => {
   padding: 0.625rem 0.75rem;
   border-bottom: 1px solid var(--color-surface-2);
   transition: background-color 0.1s ease;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .file-row:hover {
@@ -1222,10 +1236,11 @@ onMounted(async () => {
 
 .file-col-name {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
   display: flex;
   align-items: center;
   gap: 0.625rem;
-  min-width: 0;
 }
 
 .file-col-size {
@@ -1347,6 +1362,7 @@ onMounted(async () => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .folder-name {
@@ -1957,6 +1973,8 @@ onMounted(async () => {
   border-radius: 0.75rem;
   transition: border-color 0.15s ease, background-color 0.15s ease;
   position: relative;
+  overflow-x: hidden;
+  max-width: 100%;
 }
 
 .drop-zone-active {
