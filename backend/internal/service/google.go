@@ -32,8 +32,9 @@ type googleUserInfo struct {
 
 type googleAboutResponse struct {
 	StorageQuota struct {
-		Limit string `json:"limit"`
-		Usage string `json:"usage"`
+		Limit     string `json:"limit"`
+		Usage     string `json:"usage"`
+		UsageInDrive string `json:"usageInDrive"`
 	} `json:"storageQuota"`
 }
 
@@ -123,6 +124,13 @@ func GetDriveCapacity(accessToken string) (int64, int64, error) {
 
 	limit, _ := strconv.ParseInt(about.StorageQuota.Limit, 10, 64)
 	usage, _ := strconv.ParseInt(about.StorageQuota.Usage, 10, 64)
+
+	if about.StorageQuota.UsageInDrive != "" {
+		usageInDrive, _ := strconv.ParseInt(about.StorageQuota.UsageInDrive, 10, 64)
+		if usageInDrive > 0 {
+			usage = usageInDrive
+		}
+	}
 
 	return limit, usage, nil
 }
