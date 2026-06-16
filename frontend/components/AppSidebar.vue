@@ -76,26 +76,6 @@ const logout = () => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.sidebar-backdrop {
-  display: none;
-}
-
-@media (max-width: 768px) {
-  .mobile-menu-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .sidebar-backdrop {
-    display: block;
-    position: fixed;
-    inset: 0;
-    background-color: rgba(0, 0, 0, 0.4);
-    z-index: 19;
-  }
-}
-
 .sidebar {
   width: 240px;
   height: 100vh;
@@ -113,11 +93,26 @@ const logout = () => {
   .sidebar {
     transform: translateX(-100%);
     transition: transform 0.25s ease;
-    box-shadow: 4px 0 16px rgba(0, 0, 0, 0.15);
+    z-index: 101;
   }
 
   .sidebar.sidebar-open {
     transform: translateX(0);
+    box-shadow: 4px 0 16px rgba(0, 0, 0, 0.15);
+  }
+}
+
+.sidebar-backdrop {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.4);
+    z-index: 100;
   }
 }
 

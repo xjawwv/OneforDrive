@@ -134,6 +134,31 @@ if (import.meta.client) {
   background-color: var(--color-surface-1);
 }
 
+@media (max-width: 480px) {
+  .top-bar {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .page-title {
+    font-size: 14px;
+  }
+
+  .page-subtitle {
+    font-size: 10px;
+  }
+
+  .avatar-circle {
+    width: 34px;
+    height: 34px;
+    font-size: 13px;
+  }
+
+  .notification-dot {
+    width: 8px;
+    height: 8px;
+  }
+}
+
 @media (max-width: 768px) {
   .hamburger-btn {
     display: flex;

@@ -72,6 +72,26 @@ body {
   background-color: var(--color-surface-1);
   color: var(--color-text-primary);
   line-height: 1.5;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 480px) {
+  body {
+    font-size: 0.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .card {
+    padding: 1rem;
+    border-radius: 0.5rem;
+  }
+
+  .btn-primary {
+    padding: 0.5rem 1rem;
+    font-size: 0.8125rem;
+    height: 2.25rem;
+  }
 }
 
 @layer components {
