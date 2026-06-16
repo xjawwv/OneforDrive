@@ -173,12 +173,19 @@
 
             <!-- Small icons -->
             <div v-else-if="viewMode === 'small'" class="file-grid-small">
-              <div v-for="file in files" :key="file.id" class="file-card-small" @dblclick="file.is_folder ? navigateToFolder(file.id) : null">
-                <div class="file-card-icon-sm" :class="file.is_folder ? 'file-icon-folder' : 'file-icon-file'">
-                  <Folder v-if="file.is_folder" :size="16" />
-                  <File v-else :size="16" />
+              <div v-for="file in files" :key="file.id" class="file-card-small" @click="file.is_folder ? navigateToFolder(file.id) : null">
+                <div class="file-card-icon-sm" :class="file.is_folder ? 'file-icon-folder' : `file-type-${isImage(file) ? 'image' : 'file'}`">
+                  <template v-if="file.is_folder">
+                    <Folder :size="14" />
+                  </template>
+                  <template v-else-if="isImage(file)">
+                    <img :src="thumbnailUrl(file.id)" class="file-thumb-sm" @error="(e: any) => e.target.style.display='none'" crossorigin="anonymous" />
+                  </template>
+                  <template v-else>
+                    <File :size="14" />
+                  </template>
                 </div>
-                <span class="file-card-name-sm" :class="{ 'folder-name': file.is_folder }" @click="file.is_folder ? navigateToFolder(file.id) : null">{{ file.name }}</span>
+                <span class="file-card-name-sm" :class="{ 'folder-name': file.is_folder }">{{ file.name }}</span>
               </div>
             </div>
           </div>
@@ -1680,7 +1687,7 @@ onMounted(async () => {
   gap: 0.375rem;
   padding: 0.25rem 0.5rem;
   border-radius: 0.25rem;
-  cursor: default;
+  cursor: pointer;
   transition: background-color 0.1s ease;
   min-width: 120px;
 }
@@ -1697,6 +1704,13 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.file-card-icon-sm img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .modal-overlay {
