@@ -20,6 +20,20 @@
           <p class="page-subtitle">Browse and manage your files</p>
         </div>
         <div class="header-actions">
+          <div class="view-toggle-wrapper">
+            <button class="btn-icon" @click="showViewMenu = !showViewMenu" title="Change view">
+              <component :is="currentViewIcon" :size="16" />
+            </button>
+            <Transition name="menu">
+              <div v-if="showViewMenu" class="view-menu">
+                <button v-for="v in viewModes" :key="v.id" class="view-menu-item" :class="{ active: viewMode === v.id }" @click="setViewMode(v.id)">
+                  <component :is="v.icon" :size="14" />
+                  <span>{{ v.label }}</span>
+                  <span v-if="viewMode === v.id" class="view-check">&#10003;</span>
+                </button>
+              </div>
+            </Transition>
+          </div>
           <button class="btn-secondary" @click="showNewFolder = true">
             <FolderPlus :size="16" />
             <span>New Folder</span>
@@ -63,38 +77,82 @@
           </div>
 
           <div v-else>
-            <div class="file-list-header">
-              <span class="file-col-name">Name</span>
-              <span class="file-col-size">Size</span>
-              <span class="file-col-date">Date Modified</span>
-              <span class="file-col-actions"></span>
-            </div>
-            <div class="file-list">
-              <div
-                v-for="file in files"
-                :key="file.id"
-                class="file-row"
-                @dblclick="file.is_folder ? navigateToFolder(file.id) : null"
-              >
-                <div class="file-col-name">
-                  <div class="file-icon" :class="file.is_folder ? 'file-icon-folder' : 'file-icon-file'">
-                    <Folder v-if="file.is_folder" :size="16" />
-                    <File v-else :size="16" />
+            <!-- Details view -->
+            <div v-if="viewMode === 'details'">
+              <div class="file-list-header">
+                <span class="file-col-name">Name</span>
+                <span class="file-col-size">Size</span>
+                <span class="file-col-date">Date Modified</span>
+                <span class="file-col-actions"></span>
+              </div>
+              <div class="file-list">
+                <div v-for="file in files" :key="file.id" class="file-row" @dblclick="file.is_folder ? navigateToFolder(file.id) : null">
+                  <div class="file-col-name">
+                    <div class="file-icon" :class="file.is_folder ? 'file-icon-folder' : 'file-icon-file'">
+                      <Folder v-if="file.is_folder" :size="16" />
+                      <File v-else :size="16" />
+                    </div>
+                    <span class="file-name" :class="{ 'folder-name': file.is_folder }" @click="file.is_folder ? navigateToFolder(file.id) : null">{{ file.name }}</span>
                   </div>
-                  <span class="file-name" :class="{ 'folder-name': file.is_folder }" @click="file.is_folder ? navigateToFolder(file.id) : null">
-                    {{ file.name }}
-                  </span>
+                  <span class="file-col-size">{{ file.is_folder ? '--' : formatSize(file.size_total) }}</span>
+                  <span class="file-col-date">{{ formatDate(file.updated_at) }}</span>
+                  <div class="file-col-actions">
+                    <button class="icon-btn" @click="confirmDelete(file)" title="Delete"><Trash2 :size="14" /></button>
+                    <button v-if="!file.is_folder" class="icon-btn" @click="downloadFile(file)" title="Download"><Download :size="14" /></button>
+                  </div>
                 </div>
-                <span class="file-col-size">{{ file.is_folder ? '--' : formatSize(file.size_total) }}</span>
-                <span class="file-col-date">{{ formatDate(file.updated_at) }}</span>
-                <div class="file-col-actions">
-                  <button class="icon-btn" @click="confirmDelete(file)" title="Delete">
-                    <Trash2 :size="14" />
-                  </button>
-                  <button v-if="!file.is_folder" class="icon-btn" @click="downloadFile(file)" title="Download">
-                    <Download :size="14" />
-                  </button>
+              </div>
+            </div>
+
+            <!-- List view -->
+            <div v-else-if="viewMode === 'list'" class="file-list-simple">
+              <div v-for="file in files" :key="file.id" class="file-row-simple" @dblclick="file.is_folder ? navigateToFolder(file.id) : null">
+                <div class="file-icon-sm" :class="file.is_folder ? 'file-icon-folder' : 'file-icon-file'">
+                  <Folder v-if="file.is_folder" :size="14" />
+                  <File v-else :size="14" />
                 </div>
+                <span class="file-name" :class="{ 'folder-name': file.is_folder }" @click="file.is_folder ? navigateToFolder(file.id) : null">{{ file.name }}</span>
+                <div class="file-row-actions">
+                  <button class="icon-btn" @click="confirmDelete(file)" title="Delete"><Trash2 :size="14" /></button>
+                  <button v-if="!file.is_folder" class="icon-btn" @click="downloadFile(file)" title="Download"><Download :size="14" /></button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Large icons -->
+            <div v-else-if="viewMode === 'large'" class="file-grid-large">
+              <div v-for="file in files" :key="file.id" class="file-card-large" @dblclick="file.is_folder ? navigateToFolder(file.id) : null">
+                <div class="file-card-icon-large" :class="file.is_folder ? 'file-icon-folder' : 'file-icon-file'">
+                  <Folder v-if="file.is_folder" :size="36" />
+                  <File v-else :size="36" />
+                </div>
+                <span class="file-card-name" :class="{ 'folder-name': file.is_folder }" @click="file.is_folder ? navigateToFolder(file.id) : null">{{ file.name }}</span>
+                <div class="file-card-actions">
+                  <button class="icon-btn" @click="confirmDelete(file)" title="Delete"><Trash2 :size="14" /></button>
+                  <button v-if="!file.is_folder" class="icon-btn" @click="downloadFile(file)" title="Download"><Download :size="14" /></button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Medium icons -->
+            <div v-else-if="viewMode === 'medium'" class="file-grid-medium">
+              <div v-for="file in files" :key="file.id" class="file-card-medium" @dblclick="file.is_folder ? navigateToFolder(file.id) : null">
+                <div class="file-card-icon-medium" :class="file.is_folder ? 'file-icon-folder' : 'file-icon-file'">
+                  <Folder v-if="file.is_folder" :size="24" />
+                  <File v-else :size="24" />
+                </div>
+                <span class="file-card-name-sm" :class="{ 'folder-name': file.is_folder }" @click="file.is_folder ? navigateToFolder(file.id) : null">{{ file.name }}</span>
+              </div>
+            </div>
+
+            <!-- Small icons -->
+            <div v-else-if="viewMode === 'small'" class="file-grid-small">
+              <div v-for="file in files" :key="file.id" class="file-card-small" @dblclick="file.is_folder ? navigateToFolder(file.id) : null">
+                <div class="file-card-icon-sm" :class="file.is_folder ? 'file-icon-folder' : 'file-icon-file'">
+                  <Folder v-if="file.is_folder" :size="16" />
+                  <File v-else :size="16" />
+                </div>
+                <span class="file-card-name-sm" :class="{ 'folder-name': file.is_folder }" @click="file.is_folder ? navigateToFolder(file.id) : null">{{ file.name }}</span>
               </div>
             </div>
           </div>
@@ -212,7 +270,7 @@
 </template>
 
 <script setup lang="ts">
-import { FolderOpen, FolderPlus, Upload, Folder, File, Trash2, Download, ChevronRight, Home, Loader2, X, AlertTriangle } from 'lucide-vue-next'
+import { FolderOpen, FolderPlus, Upload, Folder, File, Trash2, Download, ChevronRight, Home, Loader2, X, AlertTriangle, LayoutGrid, List, LayoutList, Grip } from 'lucide-vue-next'
 
 definePageMeta({ layout: false })
 
@@ -227,6 +285,33 @@ const breadcrumbs = ref<{ id: number; name: string }[]>([])
 const showNewFolder = ref(false)
 const newFolderName = ref('')
 const isDragging = ref(false)
+const viewMode = ref('details')
+const showViewMenu = ref(false)
+
+const viewModes = [
+  { id: 'details', label: 'Details', icon: LayoutList },
+  { id: 'list', label: 'List', icon: List },
+  { id: 'large', label: 'Large icons', icon: LayoutGrid },
+  { id: 'medium', label: 'Medium icons', icon: Grip },
+  { id: 'small', label: 'Small icons', icon: LayoutGrid },
+]
+
+onMounted(() => {
+  if (import.meta.client) {
+    const saved = localStorage.getItem('viewMode')
+    if (saved && viewModes.find(v => v.id === saved)) {
+      viewMode.value = saved
+    }
+  }
+})
+
+const setViewMode = (mode: string) => {
+  viewMode.value = mode
+  localStorage.setItem('viewMode', mode)
+  showViewMenu.value = false
+}
+
+const currentViewIcon = computed(() => viewModes.find(v => v.id === viewMode.value)?.icon || LayoutList)
 let dragCounter = 0
 
 const showDeleteConfirm = ref(false)
@@ -618,6 +703,14 @@ const handlePopState = () => {
 onMounted(async () => {
   if (import.meta.client) {
     if (!localStorage.getItem('token')) { navigateTo('/login'); return }
+    document.addEventListener('click', (e) => {
+      if (showViewMenu.value) {
+        const target = e.target as HTMLElement
+        if (!target.closest('.view-toggle-wrapper')) {
+          showViewMenu.value = false
+        }
+      }
+    })
   }
   const folderParam = route.query.folder
   if (folderParam) {
@@ -848,6 +941,247 @@ onMounted(async () => {
 .icon-btn:hover {
   color: var(--color-text-primary);
   background-color: var(--color-surface-2);
+}
+
+.btn-icon {
+  background: none;
+  border: 1px solid var(--color-surface-3);
+  color: var(--color-text-secondary);
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.12s ease;
+}
+
+.btn-icon:hover {
+  background-color: var(--color-surface-1);
+}
+
+.view-toggle-wrapper {
+  position: relative;
+}
+
+.view-menu {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  right: 0;
+  background-color: var(--color-surface-0);
+  border: 1px solid var(--color-surface-3);
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  min-width: 180px;
+  z-index: 50;
+  padding: 0.25rem 0;
+}
+
+.view-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  background: none;
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.1s ease;
+}
+
+.view-menu-item:hover {
+  background-color: var(--color-surface-1);
+}
+
+.view-menu-item.active {
+  color: var(--color-brand-600);
+  font-weight: 500;
+}
+
+.view-check {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--color-brand-600);
+}
+
+.menu-enter-active { transition: opacity 0.1s ease, transform 0.1s ease; }
+.menu-leave-active { transition: opacity 0.08s ease, transform 0.08s ease; }
+.menu-enter-from, .menu-leave-to { opacity: 0; transform: translateY(-4px); }
+
+/* List view */
+.file-list-simple {
+  display: flex;
+  flex-direction: column;
+}
+
+.file-row-simple {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.5rem;
+  border-radius: 0.25rem;
+  transition: background-color 0.1s ease;
+}
+
+.file-row-simple:hover {
+  background-color: var(--color-surface-1);
+}
+
+.file-icon-sm {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.file-row-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 0.25rem;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+
+.file-row-simple:hover .file-row-actions {
+  opacity: 1;
+}
+
+/* Large icons */
+.file-grid-large {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 1rem;
+}
+
+.file-card-large {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  cursor: default;
+  transition: background-color 0.1s ease;
+}
+
+.file-card-large:hover {
+  background-color: var(--color-surface-1);
+}
+
+.file-card-icon-large {
+  width: 5rem;
+  height: 5rem;
+  border-radius: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.625rem;
+}
+
+.file-card-name {
+  font-size: 0.8125rem;
+  color: var(--color-text-primary);
+  text-align: center;
+  word-break: break-word;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.file-card-actions {
+  display: flex;
+  gap: 0.25rem;
+  margin-top: 0.375rem;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+
+.file-card-large:hover .file-card-actions {
+  opacity: 1;
+}
+
+/* Medium icons */
+.file-grid-medium {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 0.75rem;
+}
+
+.file-card-medium {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.75rem 0.5rem;
+  border-radius: 0.5rem;
+  cursor: default;
+  transition: background-color 0.1s ease;
+}
+
+.file-card-medium:hover {
+  background-color: var(--color-surface-1);
+}
+
+.file-card-icon-medium {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.5rem;
+}
+
+.file-card-name-sm {
+  font-size: 0.75rem;
+  color: var(--color-text-primary);
+  text-align: center;
+  word-break: break-word;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* Small icons */
+.file-grid-small {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.file-card-small {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  cursor: default;
+  transition: background-color 0.1s ease;
+  min-width: 120px;
+}
+
+.file-card-small:hover {
+  background-color: var(--color-surface-1);
+}
+
+.file-card-icon-sm {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .modal-overlay {
