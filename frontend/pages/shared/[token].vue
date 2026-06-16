@@ -84,7 +84,7 @@ const token = ref('')
 
 const imageExtensions = ['jpg','jpeg','png','gif','webp','bmp','svg','ico']
 const isImage = computed(() => {
-  if (!fileInfo.value || fileInfo.value.is_folder) return false
+  if (!fileInfo.value || fileInfo.value.is_folder || !fileInfo.value.name) return false
   const ext = fileInfo.value.name.split('.').pop()?.toLowerCase()
   return imageExtensions.includes(ext || '')
 })

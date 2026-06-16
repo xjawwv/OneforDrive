@@ -97,7 +97,7 @@ func createTables() {
 			id BIGINT AUTO_INCREMENT PRIMARY KEY,
 			file_id BIGINT NOT NULL,
 			token VARCHAR(64) UNIQUE NOT NULL,
-			expires_at TIMESTAMP NULL,
+			expires_at DATETIME NULL,
 			created_by BIGINT NOT NULL,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE,
