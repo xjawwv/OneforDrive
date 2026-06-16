@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
@@ -378,15 +379,36 @@ func findRouteStorageFolder(accessToken string) (string, error) {
 }
 
 func SyncOrphanedFiles(accessToken string, folderID string, knownDriveFileIDs map[string]bool) (int, error) {
-	if folderID == "" {
-		return 0, nil
+	var deleted int
+
+	deletedRoot, err := syncFolderOrphans(accessToken, "", knownDriveFileIDs)
+	deleted += deletedRoot
+	if err != nil {
+		log.Printf("Root sync error: %v", err)
 	}
 
+	if folderID != "" {
+		deletedFolder, err := syncFolderOrphans(accessToken, folderID, knownDriveFileIDs)
+		deleted += deletedFolder
+		if err != nil {
+			log.Printf("RouteStorage folder sync error: %v", err)
+		}
+	}
+
+	return deleted, nil
+}
+
+func syncFolderOrphans(accessToken string, folderID string, knownDriveFileIDs map[string]bool) (int, error) {
 	var deleted int
 	var pageToken string
 
 	for {
-		query := fmt.Sprintf("'%s' in parents and trashed = false", folderID)
+		var query string
+		if folderID != "" {
+			query = fmt.Sprintf("'%s' in parents and trashed = false and mimeType != 'application/vnd.google-apps.folder'", folderID)
+		} else {
+			query = "'root' in parents and trashed = false and mimeType != 'application/vnd.google-apps.folder'"
+		}
 		if pageToken != "" {
 			query += fmt.Sprintf("&pageToken=%s", pageToken)
 		}
@@ -422,6 +444,7 @@ func SyncOrphanedFiles(accessToken string, folderID string, knownDriveFileIDs ma
 					delResp.Body.Close()
 					if delResp.StatusCode == 204 || delResp.StatusCode == 200 {
 						deleted++
+						log.Printf("Deleted orphaned file: %s (%s)", f.Name, f.ID)
 					}
 				}
 			}

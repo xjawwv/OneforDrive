@@ -65,6 +65,9 @@
             <span class="status-badge" :class="account.is_active ? 'status-active' : 'status-inactive'">
               {{ account.is_active ? 'Active' : 'Inactive' }}
             </span>
+            <button class="sync-btn" @click="syncAccount(account.id)" :disabled="account._syncing" title="Sync Drive">
+              <RefreshCw :size="14" :class="{ spin: account._syncing }" />
+            </button>
             <button class="delete-btn" @click="removeAccount(account.id)" title="Remove account">
               <Trash2 :size="16" />
             </button>
@@ -76,7 +79,7 @@
 </template>
 
 <script setup lang="ts">
-import { Plus, CloudOff, User, Trash2 } from 'lucide-vue-next'
+import { Plus, CloudOff, User, Trash2, RefreshCw } from 'lucide-vue-next'
 
 definePageMeta({ layout: false })
 
@@ -114,6 +117,23 @@ const connectAccount = async () => {
 
 const removeAccount = async (id: number) => {
   try { await apiFetch(`/api/accounts/${id}`, { method: 'DELETE' }); await loadAccounts(); await loadStats() } catch {}
+}
+
+const syncAccount = async (id: number) => {
+  const account = accounts.value.find(a => a.id === id)
+  if (!account) return
+  account._syncing = true
+  try {
+    const resp = await apiFetch(`/api/accounts/${id}/sync`, { method: 'POST' }) as any
+    if (resp.deleted > 0) {
+      await loadAccounts()
+      await loadStats()
+    } else {
+      account.capacity_total = resp.capacity_total
+      account.capacity_used = resp.capacity_used
+    }
+  } catch {}
+  account._syncing = false
 }
 
 onMounted(() => {
@@ -252,6 +272,38 @@ onMounted(() => {
 .delete-btn:hover {
   color: var(--color-danger);
   background-color: rgba(250, 82, 82, 0.08);
+}
+
+.sync-btn {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0.375rem;
+  border-radius: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.12s ease, background-color 0.12s ease;
+}
+
+.sync-btn:hover {
+  color: var(--color-brand-600);
+  background-color: rgba(76, 110, 245, 0.08);
+}
+
+.sync-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .progress-bar-wrapper {

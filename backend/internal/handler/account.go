@@ -170,6 +170,51 @@ func (h *AccountHandler) OAuthCallback(c *gin.Context) {
 	}
 }
 
+func (h *AccountHandler) SyncDrive(c *gin.Context) {
+	userID := c.GetInt64("user_id")
+	id := c.Param("id")
+
+	var accessToken, folderID string
+	err := h.DB.QueryRow(
+		"SELECT access_token, COALESCE(route_storage_folder_id, '') FROM drive_accounts WHERE id = ? AND user_id = ? AND is_active = TRUE",
+		id, userID,
+	).Scan(&accessToken, &folderID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "account not found"})
+		return
+	}
+
+	knownIDs := make(map[string]bool)
+	rows, _ := h.DB.Query(
+		"SELECT fc.drive_file_id FROM file_chunks fc JOIN drive_accounts da ON fc.account_id = da.id WHERE da.id = ?",
+		id,
+	)
+	if rows != nil {
+		defer rows.Close()
+		for rows.Next() {
+			var driveFileID string
+			if rows.Scan(&driveFileID) == nil {
+				knownIDs[driveFileID] = true
+			}
+		}
+	}
+
+	deleted, err := service.SyncOrphanedFiles(accessToken, folderID, knownIDs)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	capTotal, capUsed, _ := service.GetDriveCapacity(accessToken)
+	h.DB.Exec("UPDATE drive_accounts SET capacity_total = ?, capacity_used = ? WHERE id = ?", capTotal, capUsed, id)
+
+	c.JSON(http.StatusOK, gin.H{
+		"deleted":          deleted,
+		"capacity_total":   capTotal,
+		"capacity_used":    capUsed,
+	})
+}
+
 func (h *AccountHandler) DeleteAccount(c *gin.Context) {
 	userID := c.GetInt64("user_id")
 	id := c.Param("id")

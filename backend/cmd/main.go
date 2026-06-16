@@ -56,6 +56,7 @@ func main() {
 	{
 		accounts.GET("/connect", accountH.ConnectAccount)
 		accounts.GET("", accountH.GetAccounts)
+		accounts.POST("/:id/sync", accountH.SyncDrive)
 		accounts.DELETE("/:id", accountH.DeleteAccount)
 	}
 
