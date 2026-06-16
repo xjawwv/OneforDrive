@@ -97,9 +97,9 @@
                   <span class="file-col-size">{{ file.is_folder ? '--' : formatSize(file.size_total) }}</span>
                   <span class="file-col-date">{{ formatDate(file.updated_at) }}</span>
                   <div class="file-col-actions">
-                    <button class="icon-btn" @click="confirmDelete(file)" title="Delete"><Trash2 :size="14" /></button>
-                    <button v-if="!file.is_folder" class="icon-btn" @click="downloadFile(file)" title="Download"><Download :size="14" /></button>
-                    <button class="icon-btn" @click="openShareDialog(file)" title="Share"><Share2 :size="14" /></button>
+                    <button class="icon-btn" @click="openContextMenu($event, file)" title="More">
+                      <MoreVertical :size="14" />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -114,8 +114,9 @@
                 </div>
                 <span class="file-name" :class="{ 'folder-name': file.is_folder }" @click="file.is_folder ? navigateToFolder(file.id) : null">{{ file.name }}</span>
                 <div class="file-row-actions">
-                  <button class="icon-btn" @click="confirmDelete(file)" title="Delete"><Trash2 :size="14" /></button>
-                  <button v-if="!file.is_folder" class="icon-btn" @click="downloadFile(file)" title="Download"><Download :size="14" /></button>
+                  <button class="icon-btn" @click="openContextMenu($event, file)" title="More">
+                    <MoreVertical :size="14" />
+                  </button>
                 </div>
               </div>
             </div>
@@ -139,8 +140,9 @@
                 </div>
                 <span class="file-card-name" :class="{ 'folder-name': file.is_folder }" @click="file.is_folder ? navigateToFolder(file.id) : null">{{ file.name }}</span>
                 <div class="file-card-actions">
-                  <button class="icon-btn" @click="confirmDelete(file)" title="Delete"><Trash2 :size="14" /></button>
-                  <button v-if="!file.is_folder" class="icon-btn" @click="downloadFile(file)" title="Download"><Download :size="14" /></button>
+                  <button class="icon-btn" @click="openContextMenu($event, file)" title="More">
+                    <MoreVertical :size="14" />
+                  </button>
                 </div>
               </div>
             </div>
@@ -246,6 +248,23 @@
         </div>
       </div>
     </Transition>
+
+    <Teleport to="body">
+      <div v-if="contextMenu.show" class="context-menu-overlay" @click="closeContextMenu" @contextmenu.prevent="closeContextMenu">
+        <div class="context-menu" :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }">
+          <button v-if="!contextMenu.file?.is_folder" class="context-menu-item" @click="contextAction('download')">
+            <Download :size="14" /> <span>Download</span>
+          </button>
+          <button class="context-menu-item" @click="contextAction('share')">
+            <Share2 :size="14" /> <span>Share</span>
+          </button>
+          <div class="context-menu-divider"></div>
+          <button class="context-menu-item danger" @click="contextAction('delete')">
+            <Trash2 :size="14" /> <span>Delete</span>
+          </button>
+        </div>
+      </div>
+    </Teleport>
 
     <Transition name="modal">
       <div v-if="lightboxFile" class="lightbox-overlay">
@@ -366,7 +385,7 @@
 </template>
 
 <script setup lang="ts">
-import { FolderOpen, FolderPlus, Upload, Folder, File, Trash2, Download, ChevronRight, Home, Loader2, X, AlertTriangle, LayoutGrid, List, LayoutList, Grip, Image, Film, Music, FileText, Minus, Plus, Search, Share2, Copy, Check } from 'lucide-vue-next'
+import { FolderOpen, FolderPlus, Upload, Folder, File, Trash2, Download, ChevronRight, Home, Loader2, X, AlertTriangle, LayoutGrid, List, LayoutList, Grip, Image, Film, Music, FileText, Minus, Plus, Search, Share2, Copy, Check, MoreVertical } from 'lucide-vue-next'
 
 definePageMeta({ layout: false })
 
@@ -391,6 +410,7 @@ const shareLinks = ref<any[]>([])
 const shareExpiry = ref('24h')
 const shareLoading = ref(false)
 const copiedLinkId = ref<number | null>(null)
+const contextMenu = ref<{ show: boolean; file: any; x: number; y: number }>({ show: false, file: null, x: 0, y: 0 })
 
 const viewModes = [
   { id: 'details', label: 'Details', icon: LayoutList },
@@ -479,6 +499,26 @@ const closeShareDialog = () => {
   showShareDialog.value = false
   shareTarget.value = null
   shareLinks.value = []
+}
+
+const openContextMenu = (e: MouseEvent, file: any) => {
+  e.preventDefault()
+  e.stopPropagation()
+  contextMenu.value = { show: true, file, x: e.clientX, y: e.clientY }
+}
+
+const closeContextMenu = () => {
+  contextMenu.value.show = false
+  contextMenu.value.file = null
+}
+
+const contextAction = (action: string) => {
+  const file = contextMenu.value.file
+  closeContextMenu()
+  if (!file) return
+  if (action === 'download' && !file.is_folder) downloadFile(file)
+  else if (action === 'delete') confirmDelete(file)
+  else if (action === 'share') openShareDialog(file)
 }
 
 const imageExtensions = ['jpg','jpeg','png','gif','webp','bmp','svg','ico']
@@ -1571,6 +1611,56 @@ onMounted(async () => {
   font-size: 0.8125rem;
   color: var(--color-text-muted);
   margin: 0;
+}
+
+.context-menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+}
+
+.context-menu {
+  position: fixed;
+  background-color: var(--color-surface-0);
+  border: 1px solid var(--color-surface-3);
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  min-width: 160px;
+  padding: 0.25rem 0;
+  z-index: 501;
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  background: none;
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.1s ease;
+}
+
+.context-menu-item:hover {
+  background-color: var(--color-surface-1);
+}
+
+.context-menu-item.danger {
+  color: var(--color-danger);
+}
+
+.context-menu-item.danger:hover {
+  background-color: rgba(250, 82, 82, 0.08);
+}
+
+.context-menu-divider {
+  height: 1px;
+  background-color: var(--color-surface-2);
+  margin: 0.25rem 0;
 }
 
 .drop-zone {
