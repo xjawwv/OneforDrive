@@ -137,13 +137,11 @@
                     <FileText v-else-if="isDoc(file)" :size="48" />
                     <File v-else :size="48" />
                   </template>
-                </div>
-                <span class="file-card-name" :class="{ 'folder-name': file.is_folder }" @click="file.is_folder ? navigateToFolder(file.id) : null">{{ file.name }}</span>
-                <div class="file-card-actions">
-                  <button class="icon-btn" @click="openContextMenu($event, file)" title="More">
+                  <button class="card-menu-btn" @click.stop="openContextMenu($event, file)" title="More">
                     <MoreVertical :size="14" />
                   </button>
                 </div>
+                <span class="file-card-name" :class="{ 'folder-name': file.is_folder }" @click="file.is_folder ? navigateToFolder(file.id) : null">{{ file.name }}</span>
               </div>
             </div>
 
@@ -163,6 +161,9 @@
                     <FileText v-else-if="isDoc(file)" :size="32" />
                     <File v-else :size="32" />
                   </template>
+                  <button class="card-menu-btn" @click.stop="openContextMenu($event, file)" title="More">
+                    <MoreVertical :size="12" />
+                  </button>
                 </div>
                 <span class="file-card-name-sm" :class="{ 'folder-name': file.is_folder }" @click="file.is_folder ? navigateToFolder(file.id) : null">{{ file.name }}</span>
               </div>
@@ -504,7 +505,13 @@ const closeShareDialog = () => {
 const openContextMenu = (e: MouseEvent, file: any) => {
   e.preventDefault()
   e.stopPropagation()
-  contextMenu.value = { show: true, file, x: e.clientX, y: e.clientY }
+  const menuWidth = 170
+  const menuHeight = 140
+  let x = e.clientX
+  let y = e.clientY
+  if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - 8
+  if (y + menuHeight > window.innerHeight) y = window.innerHeight - menuHeight - 8
+  contextMenu.value = { show: true, file, x, y }
 }
 
 const closeContextMenu = () => {
@@ -1329,6 +1336,35 @@ onMounted(async () => {
   margin-bottom: 0.625rem;
   overflow: hidden;
   cursor: pointer;
+  position: relative;
+}
+
+.card-menu-btn {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  background-color: rgba(255, 255, 255, 0.85);
+  border: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+  z-index: 2;
+}
+
+.file-card-large:hover .card-menu-btn,
+.file-card-medium:hover .card-menu-btn {
+  opacity: 1;
+}
+
+.card-menu-btn:hover {
+  background-color: rgba(255, 255, 255, 1);
+  color: var(--color-text-primary);
 }
 
 .file-thumb {
@@ -1393,6 +1429,7 @@ onMounted(async () => {
   margin-bottom: 0.5rem;
   overflow: hidden;
   cursor: pointer;
+  position: relative;
 }
 
 .file-thumb-sm {
