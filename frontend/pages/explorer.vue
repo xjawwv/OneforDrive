@@ -84,7 +84,6 @@
               <div class="file-list-header">
                 <span class="file-col-name">Name</span>
                 <span class="file-col-size">Size</span>
-                <span class="file-col-date">Date Modified</span>
                 <span class="file-col-actions"></span>
               </div>
               <div class="file-list">
@@ -92,13 +91,15 @@
                   <div class="file-col-name">
                     <div class="file-icon" :class="file.is_folder ? 'file-icon-folder' : `file-type-${isImage(file) ? 'image' : 'file'}`">
                       <template v-if="file.is_folder"><Folder :size="16" /></template>
-                      <template v-else-if="isImage(file)"><img :src="thumbnailUrl(file.id)" class="file-thumb-detail" @error="(e: any) => e.target.style.display='none'" crossorigin="anonymous" /></template>
+                      <template v-else-if="isImage(file)"><img :src="thumbnailUrl(file.id)" class="file-thumb-xs" @error="(e: any) => e.target.style.display='none'" crossorigin="anonymous" /></template>
                       <template v-else><File :size="16" /></template>
                     </div>
-                    <span class="file-name" :class="{ 'folder-name': file.is_folder }">{{ file.name }}</span>
+                    <div class="file-name-block">
+                      <span class="file-name" :class="{ 'folder-name': file.is_folder }">{{ file.name }}</span>
+                      <span class="file-date">{{ formatDate(file.updated_at) }}</span>
+                    </div>
                   </div>
                   <span class="file-col-size">{{ file.is_folder ? '--' : formatSize(file.size_total) }}</span>
-                  <span class="file-col-date">{{ formatDate(file.updated_at) }}</span>
                   <div class="file-col-actions">
                     <button class="icon-btn" @click.stop="openContextMenu($event, file)" title="More">
                       <MoreVertical :size="14" />
@@ -1222,21 +1223,15 @@ onMounted(async () => {
   border-bottom: 1px solid var(--color-surface-2);
 }
 
-.file-list {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  overflow-x: hidden;
-}
-
 .file-row {
   display: flex;
   align-items: center;
   padding: 0.625rem 0.75rem;
   border-bottom: 1px solid var(--color-surface-2);
-  transition: background-color 0.1s ease;
-  max-width: 100%;
+  gap: 0.5rem;
+  min-width: 0;
   overflow: hidden;
+  transition: background-color 0.1s ease;
 }
 
 .file-row:hover {
@@ -1253,10 +1248,12 @@ onMounted(async () => {
 }
 
 .file-col-size {
-  width: 100px;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   color: var(--color-text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
   text-align: right;
+  min-width: 56px;
 }
 
 .file-col-date {
@@ -1267,47 +1264,33 @@ onMounted(async () => {
 }
 
 @media (max-width: 768px) {
-  .file-list-header {
+  .file-col-date {
     display: none;
   }
 
   .file-row {
-    flex-wrap: wrap;
     padding: 0.75rem 0.5rem;
-    gap: 0;
-  }
-
-  .file-col-name {
-    flex: 1 1 auto;
-    min-width: 0;
-  }
-
-  .file-col-size {
-    flex: 0 0 auto;
-    font-size: 0.75rem;
-    text-align: right;
-  }
-
-  .file-col-date {
-    width: 100%;
-    font-size: 0.6875rem;
-    text-align: left;
-    padding-top: 0.125rem;
   }
 
   .file-col-actions {
     opacity: 1;
-    flex: 0 0 auto;
   }
 }
 
 .file-col-actions {
-  width: 80px;
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.25rem;
   opacity: 0;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  width: auto;
+  padding-left: 0.25rem;
   transition: opacity 0.1s ease;
+}
+
+@media (max-width: 768px) {
+  .file-col-actions {
+    opacity: 1;
+  }
 }
 
 .file-row:hover .file-col-actions {
@@ -1379,6 +1362,27 @@ onMounted(async () => {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
+}
+
+.file-name-block {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.file-date {
+  font-size: 0.6875rem;
+  color: var(--color-text-muted);
+  margin-top: 0.125rem;
+  white-space: nowrap;
+}
+
+.file-thumb-xs {
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: 4px;
 }
 
 .folder-name {
