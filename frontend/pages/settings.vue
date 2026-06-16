@@ -158,6 +158,14 @@ onMounted(() => {
   padding: 2rem 2.5rem;
 }
 
+@media (max-width: 768px) {
+  .app-main {
+    margin-left: 0;
+    padding: 1rem;
+    padding-top: 3.5rem;
+  }
+}
+
 .page-header {
   display: flex;
   align-items: flex-start;
@@ -191,8 +199,16 @@ onMounted(() => {
   gap: 1rem;
 }
 
-@media (max-width: 640px) {
-  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+@media (max-width: 768px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
 }
 
 .stat-item {
@@ -221,6 +237,14 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+@media (max-width: 768px) {
+  .account-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
 }
 
 .account-info {

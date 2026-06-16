@@ -281,7 +281,7 @@
             <button class="lightbox-btn" @click="downloadFile(lightboxFile)" title="Download"><Download :size="18" /></button>
           </div>
         </div>
-        <div class="lightbox-body" @click="lightboxBodyClick" @mousedown="startPan" @mousemove="onPan" @mouseup="stopPan" @mouseleave="stopPan">
+        <div class="lightbox-body" @click="lightboxBodyClick" @mousedown="startPan" @mousemove="onPan" @mouseup="stopPan" @mouseleave="stopPan" @touchstart.passive="startPan" @touchmove="onPan" @touchend="stopPan">
           <button v-if="hasMultipleImages" class="lightbox-nav lightbox-nav-prev" @click.stop="prevImage"><ChevronLeft :size="24" /></button>
           <img :src="thumbnailUrl(lightboxFile.id)" class="lightbox-img" :style="lightboxImageStyle" @click.stop @wheel.prevent="handleZoom" draggable="false" />
           <button v-if="hasMultipleImages" class="lightbox-nav lightbox-nav-next" @click.stop="nextImage"><ChevronRight :size="24" /></button>
@@ -474,17 +474,20 @@ const resetView = () => {
   lightboxPanY.value = 0
 }
 
-const startPan = (e: MouseEvent) => {
+const startPan = (e: MouseEvent | TouchEvent) => {
   if (lightboxZoom.value <= 1) return
   isPanning.value = true
   didPan.value = false
-  panStart.value = { x: e.clientX - lightboxPanX.value, y: e.clientY - lightboxPanY.value }
+  const pt = 'touches' in e ? e.touches[0] : e
+  panStart.value = { x: pt.clientX - lightboxPanX.value, y: pt.clientY - lightboxPanY.value }
 }
 
-const onPan = (e: MouseEvent) => {
+const onPan = (e: MouseEvent | TouchEvent) => {
   if (!isPanning.value) return
-  lightboxPanX.value = e.clientX - panStart.value.x
-  lightboxPanY.value = e.clientY - panStart.value.y
+  e.preventDefault()
+  const pt = 'touches' in e ? e.touches[0] : e
+  lightboxPanX.value = pt.clientX - panStart.value.x
+  lightboxPanY.value = pt.clientY - panStart.value.y
   didPan.value = true
 }
 
@@ -1054,6 +1057,14 @@ onMounted(async () => {
   padding: 2rem 2.5rem;
 }
 
+@media (max-width: 768px) {
+  .app-main {
+    margin-left: 0;
+    padding: 1rem;
+    padding-top: 3.5rem;
+  }
+}
+
 .page-header {
   display: flex;
   align-items: center;
@@ -1077,6 +1088,23 @@ onMounted(async () => {
 .header-actions {
   display: flex;
   gap: 0.5rem;
+}
+
+@media (max-width: 768px) {
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .header-actions {
+    width: 100%;
+  }
+
+  .header-actions .btn-secondary,
+  .header-actions .upload-btn {
+    flex: 1;
+  }
 }
 
 .btn-secondary {
@@ -1192,6 +1220,16 @@ onMounted(async () => {
   font-size: 0.8125rem;
   color: var(--color-text-muted);
   text-align: right;
+}
+
+@media (max-width: 768px) {
+  .file-col-date {
+    display: none;
+  }
+
+  .file-list-header span:nth-child(3) {
+    display: none;
+  }
 }
 
 .file-col-actions {
@@ -1398,6 +1436,13 @@ onMounted(async () => {
   gap: 1rem;
 }
 
+@media (max-width: 768px) {
+  .file-grid-large {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 0.75rem;
+  }
+}
+
 .file-card-large {
   display: flex;
   flex-direction: column;
@@ -1489,6 +1534,12 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   gap: 0.75rem;
+}
+
+@media (max-width: 768px) {
+  .file-grid-medium {
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  }
 }
 
 .file-card-medium {
@@ -1838,6 +1889,20 @@ onMounted(async () => {
   overflow: hidden;
 }
 
+@media (max-width: 768px) {
+  .upload-panel,
+  .download-panel {
+    width: calc(100vw - 2rem);
+    right: 1rem;
+  }
+
+  .panels-container {
+    right: 0;
+    left: 0;
+    justify-content: center;
+  }
+}
+
 .lightbox-overlay {
   position: fixed;
   inset: 0;
@@ -1942,6 +2007,21 @@ onMounted(async () => {
   object-fit: contain;
   transition: transform 0.15s ease;
   pointer-events: none;
+}
+
+@media (max-width: 768px) {
+  .lightbox-img {
+    max-width: 95vw;
+    max-height: 75vh;
+  }
+
+  .lightbox-nav {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+
+  .lightbox-nav-prev { left: 0.5rem; }
+  .lightbox-nav-next { right: 0.5rem; }
 }
 
 .lightbox-nav {

@@ -103,7 +103,7 @@
             <a :href="`${useRuntimeConfig().public.apiBase}/shared/${token}/download?child_id=${lightboxFile.id}`" class="lightbox-btn" title="Download"><Download :size="18" /></a>
           </div>
         </div>
-        <div class="lightbox-body" @click="lightboxBodyClick" @mousedown="startPan" @mousemove="onPan" @mouseup="stopPan" @mouseleave="stopPan">
+        <div class="lightbox-body" @click="lightboxBodyClick" @mousedown="startPan" @mousemove="onPan" @mouseup="stopPan" @mouseleave="stopPan" @touchstart.passive="startPan" @touchmove="onPan" @touchend="stopPan">
           <button v-if="hasMultipleImages" class="lightbox-nav lightbox-nav-prev" @click.stop="prevImage"><ChevronLeft :size="24" /></button>
           <img :src="lightboxThumbnailUrl" class="lightbox-img" :style="lightboxImageStyle" @click.stop @wheel.prevent="handleZoom" draggable="false" />
           <button v-if="hasMultipleImages" class="lightbox-nav lightbox-nav-next" @click.stop="nextImage"><ChevronRight :size="24" /></button>
@@ -217,17 +217,20 @@ const resetView = () => {
   lightboxPanY.value = 0
 }
 
-const startPan = (e: MouseEvent) => {
+const startPan = (e: MouseEvent | TouchEvent) => {
   if (lightboxZoom.value <= 1) return
   isPanning.value = true
-  panStart.value = { x: e.clientX - lightboxPanX.value, y: e.clientY - lightboxPanY.value }
   didPan.value = false
+  const pt = 'touches' in e ? e.touches[0] : e
+  panStart.value = { x: pt.clientX - lightboxPanX.value, y: pt.clientY - lightboxPanY.value }
 }
 
-const onPan = (e: MouseEvent) => {
+const onPan = (e: MouseEvent | TouchEvent) => {
   if (!isPanning.value) return
-  lightboxPanX.value = e.clientX - panStart.value.x
-  lightboxPanY.value = e.clientY - panStart.value.y
+  e.preventDefault()
+  const pt = 'touches' in e ? e.touches[0] : e
+  lightboxPanX.value = pt.clientX - panStart.value.x
+  lightboxPanY.value = pt.clientY - panStart.value.y
   didPan.value = true
 }
 
@@ -364,11 +367,30 @@ onMounted(async () => {
   padding: 2rem 2.5rem;
 }
 
+@media (max-width: 768px) {
+  .shared-layout {
+    padding: 1rem;
+  }
+}
+
 .page-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 1.75rem;
+}
+
+@media (max-width: 768px) {
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .header-meta {
+    width: 100%;
+    flex-wrap: wrap;
+  }
 }
 
 .breadcrumb {
@@ -439,6 +461,13 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 1rem;
+}
+
+@media (max-width: 768px) {
+  .file-grid-large {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 0.75rem;
+  }
 }
 
 .file-card-large {
@@ -688,6 +717,21 @@ onMounted(async () => {
   object-fit: contain;
   transition: transform 0.15s ease;
   pointer-events: none;
+}
+
+@media (max-width: 768px) {
+  .lightbox-img {
+    max-width: 95vw;
+    max-height: 75vh;
+  }
+
+  .lightbox-nav {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+
+  .lightbox-nav-prev { left: 0.5rem; }
+  .lightbox-nav-next { right: 0.5rem; }
 }
 
 .lightbox-nav {

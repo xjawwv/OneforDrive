@@ -1,41 +1,58 @@
 <template>
-  <aside class="sidebar">
-    <div class="sidebar-header">
-      <div class="sidebar-logo">
-        <HardDrive :size="20" color="white" :stroke-width="2" />
-      </div>
-      <span class="sidebar-brand">RouteStorage</span>
-    </div>
-
-    <nav class="sidebar-nav">
-      <NuxtLink to="/explorer" class="sidebar-link" :class="{ active: current === 'explorer' }">
-        <FolderOpen :size="18" />
-        <span>Explorer</span>
-      </NuxtLink>
-      <NuxtLink to="/settings" class="sidebar-link" :class="{ active: current === 'settings' }">
-        <Settings :size="18" />
-        <span>Settings</span>
-      </NuxtLink>
-    </nav>
-
-    <div class="sidebar-footer">
-      <div class="sidebar-user">
-        <div class="sidebar-avatar">
-          <User :size="16" />
+  <div>
+    <button class="mobile-menu-btn" @click="toggleSidebar">
+      <Menu :size="20" />
+    </button>
+    <Transition name="sidebar">
+      <div v-if="sidebarOpen" class="sidebar-backdrop" @click="sidebarOpen = false"></div>
+    </Transition>
+    <Transition name="sidebar-slide">
+      <aside v-if="sidebarOpen" class="sidebar">
+        <div class="sidebar-header">
+          <div class="sidebar-logo">
+            <HardDrive :size="20" color="white" :stroke-width="2" />
+          </div>
+          <span class="sidebar-brand">RouteStorage</span>
+          <button class="sidebar-close" @click="sidebarOpen = false"><X :size="18" /></button>
         </div>
-        <span class="sidebar-user-name">{{ userName }}</span>
-      </div>
-      <button class="sidebar-logout" @click="logout" title="Sign out">
-        <LogOut :size="16" />
-      </button>
-    </div>
-  </aside>
+
+        <nav class="sidebar-nav">
+          <NuxtLink to="/explorer" class="sidebar-link" :class="{ active: current === 'explorer' }" @click="sidebarOpen = false">
+            <FolderOpen :size="18" />
+            <span>Explorer</span>
+          </NuxtLink>
+          <NuxtLink to="/settings" class="sidebar-link" :class="{ active: current === 'settings' }" @click="sidebarOpen = false">
+            <Settings :size="18" />
+            <span>Settings</span>
+          </NuxtLink>
+        </nav>
+
+        <div class="sidebar-footer">
+          <div class="sidebar-user">
+            <div class="sidebar-avatar">
+              <User :size="16" />
+            </div>
+            <span class="sidebar-user-name">{{ userName }}</span>
+          </div>
+          <button class="sidebar-logout" @click="logout" title="Sign out">
+            <LogOut :size="16" />
+          </button>
+        </div>
+      </aside>
+    </Transition>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { HardDrive, FolderOpen, Settings, LogOut, User } from 'lucide-vue-next'
+import { HardDrive, FolderOpen, Settings, LogOut, User, Menu, X } from 'lucide-vue-next'
 
 const props = defineProps<{ current: string }>()
+
+const sidebarOpen = ref(false)
+
+const toggleSidebar = () => {
+  sidebarOpen.value = !sidebarOpen.value
+}
 
 const userName = computed(() => {
   if (import.meta.client) {
@@ -55,6 +72,41 @@ const logout = () => {
 </script>
 
 <style scoped>
+.mobile-menu-btn {
+  display: none;
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  z-index: 30;
+  background-color: var(--color-surface-0);
+  border: 1px solid var(--color-surface-3);
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.sidebar-backdrop {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-menu-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.4);
+    z-index: 19;
+  }
+}
+
 .sidebar {
   width: 240px;
   height: 100vh;
@@ -68,11 +120,34 @@ const logout = () => {
   border-right: 1px solid var(--color-surface-2);
 }
 
+@media (max-width: 768px) {
+  .sidebar {
+    box-shadow: 4px 0 16px rgba(0, 0, 0, 0.15);
+  }
+}
+
 .sidebar-header {
   display: flex;
   align-items: center;
   gap: 0.625rem;
   padding: 1.25rem 1.25rem 1rem 1.25rem;
+}
+
+.sidebar-close {
+  display: none;
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+}
+
+@media (max-width: 768px) {
+  .sidebar-close {
+    display: flex;
+  }
 }
 
 .sidebar-logo {
@@ -177,4 +252,11 @@ const logout = () => {
   color: var(--color-danger);
   background-color: rgba(250, 82, 82, 0.08);
 }
+
+.sidebar-enter-active { transition: opacity 0.2s ease; }
+.sidebar-leave-active { transition: opacity 0.15s ease; }
+.sidebar-enter-from, .sidebar-leave-to { opacity: 0; }
+.sidebar-slide-enter-active { transition: transform 0.25s ease; }
+.sidebar-slide-leave-active { transition: transform 0.2s ease; }
+.sidebar-slide-enter-from, .sidebar-slide-leave-to { transform: translateX(-100%); }
 </style>
