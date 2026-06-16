@@ -10,9 +10,13 @@
         </button>
       </div>
       <div class="header-meta">
-        <button v-if="fileInfo?.is_folder && children.length" class="btn-secondary-sm" @click="downloadAll">
+        <button v-if="fileInfo?.is_folder && children.length && !selectMode" class="btn-secondary-sm" @click="downloadAll">
           <Download :size="14" />
           <span>Download All</span>
+        </button>
+        <button v-if="fileInfo?.is_folder && children.length && selectMode" class="btn-primary-sm" @click="downloadSelected" :disabled="selectedIds.size === 0">
+          <Download :size="14" />
+          <span>Download {{ selectedIds.size > 0 ? `(${selectedIds.size})` : '' }}</span>
         </button>
         <button v-if="fileInfo?.is_folder && children.length" class="btn-secondary-sm" @click="toggleSelectMode">
           <CheckSquare :size="14" />
@@ -99,7 +103,7 @@
             <a :href="`${useRuntimeConfig().public.apiBase}/shared/${token}/download?child_id=${lightboxFile.id}`" class="lightbox-btn" title="Download"><Download :size="18" /></a>
           </div>
         </div>
-        <div class="lightbox-body" @click="closeLightbox" @mousedown="startPan" @mousemove="onPan" @mouseup="stopPan" @mouseleave="stopPan">
+        <div class="lightbox-body" @click="lightboxBodyClick" @mousedown="startPan" @mousemove="onPan" @mouseup="stopPan" @mouseleave="stopPan">
           <button v-if="hasMultipleImages" class="lightbox-nav lightbox-nav-prev" @click.stop="prevImage"><ChevronLeft :size="24" /></button>
           <img :src="lightboxThumbnailUrl" class="lightbox-img" :style="lightboxImageStyle" @click.stop @wheel.prevent="handleZoom" draggable="false" />
           <button v-if="hasMultipleImages" class="lightbox-nav lightbox-nav-next" @click.stop="nextImage"><ChevronRight :size="24" /></button>
@@ -133,6 +137,7 @@ const lightboxPanX = ref(0)
 const lightboxPanY = ref(0)
 const lightboxIndex = ref(0)
 const isPanning = ref(false)
+const didPan = ref(false)
 const panStart = ref({ x: 0, y: 0 })
 const selectedIds = ref<Set<number>>(new Set())
 const selectMode = ref(false)
@@ -194,6 +199,7 @@ const openLightbox = (child: any) => {
 }
 
 const closeLightbox = () => {
+  if (isPanning.value) return
   lightboxFile.value = null
   lightboxZoom.value = 1
   lightboxPanX.value = 0
@@ -215,16 +221,23 @@ const startPan = (e: MouseEvent) => {
   if (lightboxZoom.value <= 1) return
   isPanning.value = true
   panStart.value = { x: e.clientX - lightboxPanX.value, y: e.clientY - lightboxPanY.value }
+  didPan.value = false
 }
 
 const onPan = (e: MouseEvent) => {
   if (!isPanning.value) return
   lightboxPanX.value = e.clientX - panStart.value.x
   lightboxPanY.value = e.clientY - panStart.value.y
+  didPan.value = true
 }
 
 const stopPan = () => {
   isPanning.value = false
+  setTimeout(() => { didPan.value = false }, 100)
+}
+
+const lightboxBodyClick = () => {
+  if (!didPan.value) closeLightbox()
 }
 
 const lightboxImageStyle = computed(() => {
@@ -526,6 +539,24 @@ onMounted(async () => {
 }
 
 .btn-secondary-sm:hover { background-color: var(--color-surface-1); }
+
+.btn-primary-sm {
+  background-color: var(--color-brand-600);
+  color: white;
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.375rem;
+  font-weight: 500;
+  font-size: 0.75rem;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  transition: opacity 0.12s ease;
+}
+
+.btn-primary-sm:hover { opacity: 0.9; }
+.btn-primary-sm:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .file-card-selected {
   background-color: rgba(76, 110, 245, 0.08) !important;

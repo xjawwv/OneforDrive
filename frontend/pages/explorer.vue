@@ -281,7 +281,7 @@
             <button class="lightbox-btn" @click="downloadFile(lightboxFile)" title="Download"><Download :size="18" /></button>
           </div>
         </div>
-        <div class="lightbox-body" @click="closeLightbox" @mousedown="startPan" @mousemove="onPan" @mouseup="stopPan" @mouseleave="stopPan">
+        <div class="lightbox-body" @click="lightboxBodyClick" @mousedown="startPan" @mousemove="onPan" @mouseup="stopPan" @mouseleave="stopPan">
           <button v-if="hasMultipleImages" class="lightbox-nav lightbox-nav-prev" @click.stop="prevImage"><ChevronLeft :size="24" /></button>
           <img :src="thumbnailUrl(lightboxFile.id)" class="lightbox-img" :style="lightboxImageStyle" @click.stop @wheel.prevent="handleZoom" draggable="false" />
           <button v-if="hasMultipleImages" class="lightbox-nav lightbox-nav-next" @click.stop="nextImage"><ChevronRight :size="24" /></button>
@@ -411,6 +411,7 @@ const lightboxPanX = ref(0)
 const lightboxPanY = ref(0)
 const lightboxIndex = ref(0)
 const isPanning = ref(false)
+const didPan = ref(false)
 const panStart = ref({ x: 0, y: 0 })
 const showShareDialog = ref(false)
 const shareTarget = ref<any>(null)
@@ -455,6 +456,7 @@ const openLightbox = (file: any) => {
 }
 
 const closeLightbox = () => {
+  if (isPanning.value) return
   lightboxFile.value = null
   lightboxZoom.value = 1
   lightboxPanX.value = 0
@@ -475,6 +477,7 @@ const resetView = () => {
 const startPan = (e: MouseEvent) => {
   if (lightboxZoom.value <= 1) return
   isPanning.value = true
+  didPan.value = false
   panStart.value = { x: e.clientX - lightboxPanX.value, y: e.clientY - lightboxPanY.value }
 }
 
@@ -482,10 +485,16 @@ const onPan = (e: MouseEvent) => {
   if (!isPanning.value) return
   lightboxPanX.value = e.clientX - panStart.value.x
   lightboxPanY.value = e.clientY - panStart.value.y
+  didPan.value = true
 }
 
 const stopPan = () => {
   isPanning.value = false
+  setTimeout(() => { didPan.value = false }, 100)
+}
+
+const lightboxBodyClick = () => {
+  if (!didPan.value) closeLightbox()
 }
 
 const lightboxImageStyle = computed(() => {
