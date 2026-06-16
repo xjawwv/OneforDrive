@@ -122,18 +122,18 @@
             <!-- Large icons -->
             <div v-else-if="viewMode === 'large'" class="file-grid-large">
               <div v-for="file in files" :key="file.id" class="file-card-large" @dblclick="file.is_folder ? navigateToFolder(file.id) : null">
-                <div class="file-card-icon-large" :class="file.is_folder ? 'file-icon-folder' : `file-type-${isImage(file) ? 'image' : isVideo(file) ? 'video' : isAudio(file) ? 'audio' : isDoc(file) ? 'doc' : 'file'}`">
+                <div class="file-card-icon-large" :class="file.is_folder ? 'file-icon-folder' : `file-type-${isImage(file) ? 'image' : isVideo(file) ? 'video' : isAudio(file) ? 'audio' : isDoc(file) ? 'doc' : 'file'}`" @click="!file.is_folder && isImage(file) ? openLightbox(file) : null">
                   <template v-if="file.is_folder">
-                    <Folder :size="36" />
+                    <Folder :size="48" />
                   </template>
                   <template v-else-if="isImage(file)">
                     <img :src="thumbnailUrl(file.id)" class="file-thumb" @error="(e: any) => e.target.style.display='none'" crossorigin="anonymous" />
                   </template>
                   <template v-else>
-                    <Film v-if="isVideo(file)" :size="36" />
-                    <Music v-else-if="isAudio(file)" :size="36" />
-                    <FileText v-else-if="isDoc(file)" :size="36" />
-                    <File v-else :size="36" />
+                    <Film v-if="isVideo(file)" :size="48" />
+                    <Music v-else-if="isAudio(file)" :size="48" />
+                    <FileText v-else-if="isDoc(file)" :size="48" />
+                    <File v-else :size="48" />
                   </template>
                 </div>
                 <span class="file-card-name" :class="{ 'folder-name': file.is_folder }" @click="file.is_folder ? navigateToFolder(file.id) : null">{{ file.name }}</span>
@@ -147,18 +147,18 @@
             <!-- Medium icons -->
             <div v-else-if="viewMode === 'medium'" class="file-grid-medium">
               <div v-for="file in files" :key="file.id" class="file-card-medium" @dblclick="file.is_folder ? navigateToFolder(file.id) : null">
-                <div class="file-card-icon-medium" :class="file.is_folder ? 'file-icon-folder' : `file-type-${isImage(file) ? 'image' : isVideo(file) ? 'video' : isAudio(file) ? 'audio' : isDoc(file) ? 'doc' : 'file'}`">
+                <div class="file-card-icon-medium" :class="file.is_folder ? 'file-icon-folder' : `file-type-${isImage(file) ? 'image' : isVideo(file) ? 'video' : isAudio(file) ? 'audio' : isDoc(file) ? 'doc' : 'file'}`" @click="!file.is_folder && isImage(file) ? openLightbox(file) : null">
                   <template v-if="file.is_folder">
-                    <Folder :size="24" />
+                    <Folder :size="32" />
                   </template>
                   <template v-else-if="isImage(file)">
                     <img :src="thumbnailUrl(file.id)" class="file-thumb-sm" @error="(e: any) => e.target.style.display='none'" crossorigin="anonymous" />
                   </template>
                   <template v-else>
-                    <Film v-if="isVideo(file)" :size="24" />
-                    <Music v-else-if="isAudio(file)" :size="24" />
-                    <FileText v-else-if="isDoc(file)" :size="24" />
-                    <File v-else :size="24" />
+                    <Film v-if="isVideo(file)" :size="32" />
+                    <Music v-else-if="isAudio(file)" :size="32" />
+                    <FileText v-else-if="isDoc(file)" :size="32" />
+                    <File v-else :size="32" />
                   </template>
                 </div>
                 <span class="file-card-name-sm" :class="{ 'folder-name': file.is_folder }" @click="file.is_folder ? navigateToFolder(file.id) : null">{{ file.name }}</span>
@@ -193,6 +193,14 @@
             <button class="btn-danger" @click="executeDelete" style="height: 2.25rem;">Delete</button>
           </div>
         </div>
+      </div>
+    </Transition>
+
+    <Transition name="modal">
+      <div v-if="lightboxFile" class="lightbox-overlay" @click="closeLightbox">
+        <button class="lightbox-close" @click="closeLightbox"><X :size="24" /></button>
+        <img :src="thumbnailUrl(lightboxFile.id)" class="lightbox-img" @click.stop />
+        <div class="lightbox-name">{{ lightboxFile.name }}</div>
       </div>
     </Transition>
 
@@ -307,6 +315,7 @@ const newFolderName = ref('')
 const isDragging = ref(false)
 const viewMode = ref('details')
 const showViewMenu = ref(false)
+const lightboxFile = ref<any>(null)
 
 const viewModes = [
   { id: 'details', label: 'Details', icon: LayoutList },
@@ -332,6 +341,15 @@ const setViewMode = (mode: string) => {
 }
 
 const currentViewIcon = computed(() => viewModes.find(v => v.id === viewMode.value)?.icon || LayoutList)
+
+const openLightbox = (file: any) => {
+  if (!isImage(file)) return
+  lightboxFile.value = file
+}
+
+const closeLightbox = () => {
+  lightboxFile.value = null
+}
 
 const imageExtensions = ['jpg','jpeg','png','gif','webp','bmp','svg','ico']
 const videoExtensions = ['mp4','avi','mkv','mov','wmv','flv','webm']
@@ -1113,7 +1131,7 @@ onMounted(async () => {
 /* Large icons */
 .file-grid-large {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 1rem;
 }
 
@@ -1132,14 +1150,15 @@ onMounted(async () => {
 }
 
 .file-card-icon-large {
-  width: 5rem;
-  height: 5rem;
+  width: 8rem;
+  height: 8rem;
   border-radius: 0.75rem;
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: 0.625rem;
   overflow: hidden;
+  cursor: pointer;
 }
 
 .file-thumb {
@@ -1176,7 +1195,7 @@ onMounted(async () => {
 /* Medium icons */
 .file-grid-medium {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   gap: 0.75rem;
 }
 
@@ -1195,14 +1214,15 @@ onMounted(async () => {
 }
 
 .file-card-icon-medium {
-  width: 3.5rem;
-  height: 3.5rem;
+  width: 5rem;
+  height: 5rem;
   border-radius: 0.5rem;
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: 0.5rem;
   overflow: hidden;
+  cursor: pointer;
 }
 
 .file-thumb-sm {
@@ -1373,6 +1393,58 @@ onMounted(async () => {
   border-radius: 0.75rem;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
   overflow: hidden;
+}
+
+.lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 300;
+  cursor: pointer;
+}
+
+.lightbox-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease;
+  z-index: 301;
+}
+
+.lightbox-close:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.lightbox-img {
+  max-width: 90vw;
+  max-height: 85vh;
+  object-fit: contain;
+  border-radius: 0.25rem;
+  cursor: default;
+}
+
+.lightbox-name {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.875rem;
+  margin-top: 0.75rem;
+  max-width: 90vw;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .upload-panel-header {
