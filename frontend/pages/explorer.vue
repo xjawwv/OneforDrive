@@ -342,7 +342,8 @@ const getFileExt = (name: string) => name.split('.').pop()?.toLowerCase() || ''
 
 const thumbnailUrl = (fileId: number) => {
   const token = import.meta.client ? localStorage.getItem('token') || '' : ''
-  return `${apiBase}/api/files/${fileId}/thumbnail?token=${token}`
+  const base = useRuntimeConfig().public.apiBase
+  return `${base}/api/files/${fileId}/thumbnail?token=${token}`
 }
 
 const isImage = (file: any) => !file.is_folder && imageExtensions.includes(getFileExt(file.name))
