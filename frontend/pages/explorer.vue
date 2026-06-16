@@ -127,7 +127,7 @@
                     <Folder :size="36" />
                   </template>
                   <template v-else-if="isImage(file)">
-                    <img :src="`${apiBase}/api/files/${file.id}/thumbnail?token=${localStorage.getItem('token')}`" class="file-thumb" @error="(e: any) => e.target.style.display='none'" crossorigin="anonymous" />
+                    <img :src="thumbnailUrl(file.id)" class="file-thumb" @error="(e: any) => e.target.style.display='none'" crossorigin="anonymous" />
                   </template>
                   <template v-else>
                     <Film v-if="isVideo(file)" :size="36" />
@@ -152,7 +152,7 @@
                     <Folder :size="24" />
                   </template>
                   <template v-else-if="isImage(file)">
-                    <img :src="`${apiBase}/api/files/${file.id}/thumbnail?token=${localStorage.getItem('token')}`" class="file-thumb-sm" @error="(e: any) => e.target.style.display='none'" crossorigin="anonymous" />
+                    <img :src="thumbnailUrl(file.id)" class="file-thumb-sm" @error="(e: any) => e.target.style.display='none'" crossorigin="anonymous" />
                   </template>
                   <template v-else>
                     <Film v-if="isVideo(file)" :size="24" />
@@ -339,6 +339,11 @@ const audioExtensions = ['mp3','wav','ogg','flac','aac','m4a']
 const docExtensions = ['pdf','doc','docx','xls','xlsx','ppt','pptx','txt','csv']
 
 const getFileExt = (name: string) => name.split('.').pop()?.toLowerCase() || ''
+
+const thumbnailUrl = (fileId: number) => {
+  const token = import.meta.client ? localStorage.getItem('token') || '' : ''
+  return `${apiBase}/api/files/${fileId}/thumbnail?token=${token}`
+}
 
 const isImage = (file: any) => !file.is_folder && imageExtensions.includes(getFileExt(file.name))
 const isVideo = (file: any) => !file.is_folder && videoExtensions.includes(getFileExt(file.name))
