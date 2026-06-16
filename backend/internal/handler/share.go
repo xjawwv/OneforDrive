@@ -276,7 +276,8 @@ func (h *ShareHandler) SharedDownload(c *gin.Context) {
 	var chunks []chunkInfo
 	for rows.Next() {
 		var ch chunkInfo
-		if err := rows.Scan(&ch.Index, &ch.DriveFileID, &ch.AccountID, nil); err == nil {
+		var chunkSize int64
+		if err := rows.Scan(&ch.Index, &ch.DriveFileID, &ch.AccountID, &chunkSize); err == nil {
 			chunks = append(chunks, ch)
 		}
 	}
