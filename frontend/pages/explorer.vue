@@ -1267,32 +1267,18 @@ onMounted(async () => {
 }
 
 @media (max-width: 768px) {
-  .file-list-header {
-    display: none;
-  }
-
-  .file-row {
-    flex-wrap: wrap;
-    gap: 0.125rem 0.5rem;
-    padding: 0.75rem;
-  }
-
-  .file-col-name {
-    flex: 1 1 50%;
-    min-width: 0;
+  .file-col-date {
+    width: 90px;
+    font-size: 0.6875rem;
   }
 
   .file-col-size {
-    flex: 0 0 auto;
+    width: 80px;
     font-size: 0.75rem;
-    margin-left: auto;
   }
 
-  .file-col-date {
-    width: 100%;
-    text-align: left;
-    font-size: 0.6875rem;
-    margin-top: -0.125rem;
+  .file-row {
+    padding: 0.75rem 0.5rem;
   }
 
   .file-col-actions {
