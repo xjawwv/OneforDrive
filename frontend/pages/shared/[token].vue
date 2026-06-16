@@ -86,12 +86,14 @@
             <a :href="`${useRuntimeConfig().public.apiBase}/shared/${token}/download?child_id=${lightboxFile.id}`" class="lightbox-btn" title="Download"><Download :size="18" /></a>
           </div>
         </div>
-        <div class="lightbox-body" @click="closeLightbox">
-          <img :src="lightboxThumbnailUrl" class="lightbox-img" :style="{ transform: `scale(${lightboxZoom})` }" @click.stop @wheel.prevent="handleZoom" />
+        <div class="lightbox-body" @click="closeLightbox" @mousedown="startPan" @mousemove="onPan" @mouseup="stopPan" @mouseleave="stopPan">
+          <button v-if="hasMultipleImages" class="lightbox-nav lightbox-nav-prev" @click.stop="prevImage"><ChevronLeft :size="24" /></button>
+          <img :src="lightboxThumbnailUrl" class="lightbox-img" :style="lightboxImageStyle" @click.stop @wheel.prevent="handleZoom" draggable="false" />
+          <button v-if="hasMultipleImages" class="lightbox-nav lightbox-nav-next" @click.stop="nextImage"><ChevronRight :size="24" /></button>
         </div>
         <div class="lightbox-footer">
           <button class="lightbox-zoom-btn" @click="lightboxZoom = Math.max(0.25, lightboxZoom - 0.25)"><Minus :size="18" /></button>
-          <button class="lightbox-zoom-btn" @click="lightboxZoom = 1"><Search :size="18" /></button>
+          <button class="lightbox-zoom-btn" @click="resetView"><Search :size="18" /></button>
           <button class="lightbox-zoom-btn" @click="lightboxZoom = Math.min(4, lightboxZoom + 0.25)"><Plus :size="18" /></button>
         </div>
       </div>
@@ -100,7 +102,7 @@
 </template>
 
 <script setup lang="ts">
-import { Folder, File, FolderOpen, Download, Loader2, AlertTriangle, Clock, Film, Music, FileText, Home, X, Minus, Plus, Search } from 'lucide-vue-next'
+import { Folder, File, FolderOpen, Download, Loader2, AlertTriangle, Clock, Film, Music, FileText, Home, X, Minus, Plus, Search, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 
 definePageMeta({ layout: false })
 
@@ -114,6 +116,11 @@ const expiresAt = ref('')
 const token = ref('')
 const lightboxFile = ref<any>(null)
 const lightboxZoom = ref(1)
+const lightboxPanX = ref(0)
+const lightboxPanY = ref(0)
+const lightboxIndex = ref(0)
+const isPanning = ref(false)
+const panStart = ref({ x: 0, y: 0 })
 
 const imageExtensions = ['jpg','jpeg','png','gif','webp','bmp','svg','ico']
 const videoExtensions = ['mp4','avi','mkv','mov','wmv','flv','webm']
@@ -164,12 +171,18 @@ const downloadFile = () => {
 
 const openLightbox = (child: any) => {
   if (child.is_folder || !isChildImage(child)) return
-  lightboxFile.value = child
+  lightboxIndex.value = children.value.findIndex((c: any) => c.id === child.id)
+  lightboxFile.value = children.value[lightboxIndex.value]
+  lightboxZoom.value = 1
+  lightboxPanX.value = 0
+  lightboxPanY.value = 0
 }
 
 const closeLightbox = () => {
   lightboxFile.value = null
   lightboxZoom.value = 1
+  lightboxPanX.value = 0
+  lightboxPanY.value = 0
 }
 
 const handleZoom = (e: WheelEvent) => {
@@ -177,9 +190,86 @@ const handleZoom = (e: WheelEvent) => {
   else lightboxZoom.value = Math.max(0.25, lightboxZoom.value - 0.1)
 }
 
+const resetView = () => {
+  lightboxZoom.value = 1
+  lightboxPanX.value = 0
+  lightboxPanY.value = 0
+}
+
+const startPan = (e: MouseEvent) => {
+  if (lightboxZoom.value <= 1) return
+  isPanning.value = true
+  panStart.value = { x: e.clientX - lightboxPanX.value, y: e.clientY - lightboxPanY.value }
+}
+
+const onPan = (e: MouseEvent) => {
+  if (!isPanning.value) return
+  lightboxPanX.value = e.clientX - panStart.value.x
+  lightboxPanY.value = e.clientY - panStart.value.y
+}
+
+const stopPan = () => {
+  isPanning.value = false
+}
+
+const lightboxImageStyle = computed(() => {
+  return {
+    transform: `translate(${lightboxPanX.value}px, ${lightboxPanY.value}px) scale(${lightboxZoom.value})`,
+    cursor: lightboxZoom.value > 1 ? (isPanning.value ? 'grabbing' : 'grab') : 'default'
+  }
+})
+
+const nextImage = () => {
+  const images = children.value.filter((c: any) => !c.is_folder && isChildImage(c))
+  if (images.length <= 1) return
+  const currentIdx = images.findIndex((c: any) => c.id === lightboxFile.value?.id)
+  const nextIdx = (currentIdx + 1) % images.length
+  lightboxIndex.value = children.value.indexOf(images[nextIdx])
+  lightboxFile.value = images[nextIdx]
+  lightboxZoom.value = 1
+  lightboxPanX.value = 0
+  lightboxPanY.value = 0
+}
+
+const prevImage = () => {
+  const images = children.value.filter((c: any) => !c.is_folder && isChildImage(c))
+  if (images.length <= 1) return
+  const currentIdx = images.findIndex((c: any) => c.id === lightboxFile.value?.id)
+  const prevIdx = (currentIdx - 1 + images.length) % images.length
+  lightboxIndex.value = children.value.indexOf(images[prevIdx])
+  lightboxFile.value = images[prevIdx]
+  lightboxZoom.value = 1
+  lightboxPanX.value = 0
+  lightboxPanY.value = 0
+}
+
+const hasMultipleImages = computed(() => {
+  return children.value.filter((c: any) => !c.is_folder && isChildImage(c)).length > 1
+})
+
 const lightboxThumbnailUrl = computed(() => {
   if (!lightboxFile.value) return ''
   return `${useRuntimeConfig().public.apiBase}/shared/${token.value}/thumbnail?child_id=${lightboxFile.value.id}`
+})
+
+const handleKeydown = (e: KeyboardEvent) => {
+  if (!lightboxFile.value) return
+  if (e.key === 'Escape') closeLightbox()
+  else if (e.key === 'ArrowRight') nextImage()
+  else if (e.key === 'ArrowLeft') prevImage()
+}
+
+onMounted(async () => {
+  if (import.meta.client) {
+    window.addEventListener('keydown', handleKeydown)
+  }
+  // ... existing fetch code
+})
+
+onUnmounted(() => {
+  if (import.meta.client) {
+    window.removeEventListener('keydown', handleKeydown)
+  }
 })
 
 onMounted(async () => {
@@ -456,14 +546,42 @@ onMounted(async () => {
   justify-content: center;
   overflow: hidden;
   cursor: pointer;
+  position: relative;
+  user-select: none;
 }
 
 .lightbox-img {
   max-width: 85vw;
   max-height: 80vh;
   object-fit: contain;
-  transition: transform 0.2s ease;
+  transition: transform 0.15s ease;
+  pointer-events: none;
 }
+
+.lightbox-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background-color: rgba(0, 0, 0, 0.4);
+  border: none;
+  color: white;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  transition: background-color 0.15s ease;
+}
+
+.lightbox-nav:hover {
+  background-color: rgba(0, 0, 0, 0.7);
+}
+
+.lightbox-nav-prev { left: 1rem; }
+.lightbox-nav-next { right: 1rem; }
 
 .lightbox-footer {
   display: flex;
