@@ -596,13 +596,17 @@ const closeShareDialog = () => {
 const openContextMenu = (e: MouseEvent, file: any) => {
   e.preventDefault()
   e.stopPropagation()
-  const menuWidth = 170
-  const menuHeight = 140
-  let x = e.clientX
-  let y = e.clientY
-  if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - 8
-  if (y + menuHeight > window.innerHeight) y = window.innerHeight - menuHeight - 8
-  contextMenu.value = { show: true, file, x, y }
+  if (window.innerWidth <= 768) {
+    contextMenu.value = { show: true, file, x: 0, y: 0 }
+  } else {
+    const menuWidth = 170
+    const menuHeight = 140
+    let x = e.clientX
+    let y = e.clientY
+    if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - 8
+    if (y + menuHeight > window.innerHeight) y = window.innerHeight - menuHeight - 8
+    contextMenu.value = { show: true, file, x, y }
+  }
 }
 
 const closeContextMenu = () => {
@@ -1089,7 +1093,7 @@ onMounted(async () => {
 
 @media (max-width: 480px) {
   .action-toolbar {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 0.375rem;
   }
 
@@ -1104,7 +1108,7 @@ onMounted(async () => {
   }
 
   .action-toolbar .upload-btn {
-    flex: 1 1 100%;
+    flex: 1;
     height: 2.25rem;
     font-size: 0.8125rem;
   }
