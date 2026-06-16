@@ -7,10 +7,30 @@
           <h1 class="page-title">Drive Accounts</h1>
           <p class="page-subtitle">Manage your connected Google Drive accounts</p>
         </div>
-        <button class="btn-primary" @click="connectAccount">
-          <Plus :size="16" />
-          <span>Connect Drive</span>
-        </button>
+        <div class="header-actions">
+          <div class="user-menu-wrapper">
+            <button class="user-avatar-btn" @click="showUserMenu = !showUserMenu">
+              <div class="user-avatar-circle">{{ userInitial }}</div>
+            </button>
+            <Transition name="menu">
+              <div v-if="showUserMenu" class="user-menu">
+                <NuxtLink to="/explorer" class="user-menu-item" @click="showUserMenu = false">
+                  <FolderOpen :size="14" />
+                  <span>Explorer</span>
+                </NuxtLink>
+                <div class="user-menu-divider"></div>
+                <button class="user-menu-item danger" @click="logout">
+                  <LogOut :size="14" />
+                  <span>Logout</span>
+                </button>
+              </div>
+            </Transition>
+          </div>
+          <button class="btn-primary" @click="connectAccount">
+            <Plus :size="16" />
+            <span>Connect Drive</span>
+          </button>
+        </div>
       </header>
 
       <div class="card" style="margin-bottom: 1.5rem;">
@@ -79,7 +99,7 @@
 </template>
 
 <script setup lang="ts">
-import { Plus, CloudOff, User, Trash2, RefreshCw } from 'lucide-vue-next'
+import { Plus, CloudOff, User, Trash2, RefreshCw, LogOut, Menu } from 'lucide-vue-next'
 
 definePageMeta({ layout: false })
 
@@ -87,6 +107,25 @@ const { apiFetch } = useApi()
 
 const accounts = ref<any[]>([])
 const stats = ref({ total_files: 0, total_size_bytes: 0, total_drive_accounts: 0, active_drive_accounts: 0, total_capacity_bytes: 0, total_used_bytes: 0 })
+const showUserMenu = ref(false)
+
+const userName = computed(() => {
+  if (import.meta.client) {
+    const user = localStorage.getItem('user')
+    if (user) {
+      try { return JSON.parse(user).name } catch { return 'U' }
+    }
+  }
+  return 'U'
+})
+
+const userInitial = computed(() => userName.value.charAt(0).toUpperCase())
+
+const logout = () => {
+  localStorage.removeItem('token')
+  localStorage.removeItem('user')
+  navigateTo('/login')
+}
 
 const formatSize = (bytes: number) => {
   if (!bytes) return '0 B'
@@ -139,6 +178,14 @@ const syncAccount = async (id: number) => {
 onMounted(() => {
   if (import.meta.client) {
     if (!localStorage.getItem('token')) { navigateTo('/login'); return }
+    document.addEventListener('click', (e) => {
+      if (showUserMenu.value) {
+        const target = e.target as HTMLElement
+        if (!target.closest('.user-menu-wrapper')) {
+          showUserMenu.value = false
+        }
+      }
+    })
   }
   loadAccounts()
   loadStats()
@@ -172,6 +219,100 @@ onMounted(() => {
   justify-content: space-between;
   margin-bottom: 1.75rem;
 }
+
+@media (max-width: 768px) {
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.user-menu-wrapper {
+  position: relative;
+}
+
+.user-avatar-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.user-avatar-circle {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 9999px;
+  background-color: var(--color-brand-600);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.user-menu {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  right: 0;
+  background-color: var(--color-surface-0);
+  border: 1px solid var(--color-surface-3);
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  min-width: 160px;
+  z-index: 50;
+  padding: 0.25rem 0;
+}
+
+.user-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  background: none;
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  text-align: left;
+  text-decoration: none;
+  transition: background-color 0.1s ease;
+}
+
+.user-menu-item:hover {
+  background-color: var(--color-surface-1);
+}
+
+.user-menu-item.danger {
+  color: var(--color-danger);
+}
+
+.user-menu-item.danger:hover {
+  background-color: rgba(250, 82, 82, 0.08);
+}
+
+.user-menu-divider {
+  height: 1px;
+  background-color: var(--color-surface-2);
+  margin: 0.25rem 0;
+}
+
+.menu-enter-active { transition: opacity 0.1s ease, transform 0.1s ease; }
+.menu-leave-active { transition: opacity 0.08s ease, transform 0.08s ease; }
+.menu-enter-from, .menu-leave-to { opacity: 0; transform: translateY(-4px); }
 
 .page-title {
   font-size: 1.5rem;

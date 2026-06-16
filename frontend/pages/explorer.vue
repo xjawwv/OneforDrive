@@ -20,6 +20,24 @@
           <p class="page-subtitle">Browse and manage your files</p>
         </div>
         <div class="header-actions">
+          <div class="user-menu-wrapper">
+            <button class="user-avatar-btn" @click="showUserMenu = !showUserMenu">
+              <div class="user-avatar-circle">{{ userInitial }}</div>
+            </button>
+            <Transition name="menu">
+              <div v-if="showUserMenu" class="user-menu">
+                <NuxtLink to="/settings" class="user-menu-item" @click="showUserMenu = false">
+                  <Settings :size="14" />
+                  <span>Settings</span>
+                </NuxtLink>
+                <div class="user-menu-divider"></div>
+                <button class="user-menu-item danger" @click="logout">
+                  <LogOut :size="14" />
+                  <span>Logout</span>
+                </button>
+              </div>
+            </Transition>
+          </div>
           <div class="view-toggle-wrapper">
             <button class="btn-icon" @click="showViewMenu = !showViewMenu" title="Change view">
               <component :is="currentViewIcon" :size="16" />
@@ -36,11 +54,11 @@
           </div>
           <button class="btn-secondary" @click="showNewFolder = true">
             <FolderPlus :size="16" />
-            <span>New Folder</span>
+            <span class="hide-mobile">New Folder</span>
           </button>
           <label class="btn-primary upload-btn">
             <Upload :size="16" />
-            <span>Upload</span>
+            <span class="hide-mobile">Upload</span>
             <input type="file" multiple @change="handleUpload" style="display: none;" />
           </label>
         </div>
@@ -388,7 +406,7 @@
 </template>
 
 <script setup lang="ts">
-import { FolderOpen, FolderPlus, Upload, Folder, File, Trash2, Download, ChevronRight, Home, Loader2, X, AlertTriangle, LayoutGrid, List, LayoutList, Grip, Image, Film, Music, FileText, Minus, Plus, Search, Share2, Copy, Check, MoreVertical } from 'lucide-vue-next'
+import { FolderOpen, FolderPlus, Upload, Folder, File, Trash2, Download, ChevronRight, Home, Loader2, X, AlertTriangle, LayoutGrid, List, LayoutList, Grip, Image, Film, Music, FileText, Minus, Plus, Search, Share2, Copy, Check, MoreVertical, User, LogOut, Settings } from 'lucide-vue-next'
 
 definePageMeta({ layout: false })
 
@@ -420,6 +438,25 @@ const shareExpiry = ref('24h')
 const shareLoading = ref(false)
 const copiedLinkId = ref<number | null>(null)
 const contextMenu = ref<{ show: boolean; file: any; x: number; y: number }>({ show: false, file: null, x: 0, y: 0 })
+const showUserMenu = ref(false)
+
+const userName = computed(() => {
+  if (import.meta.client) {
+    const user = localStorage.getItem('user')
+    if (user) {
+      try { return JSON.parse(user).name } catch { return 'U' }
+    }
+  }
+  return 'U'
+})
+
+const userInitial = computed(() => userName.value.charAt(0).toUpperCase())
+
+const logout = () => {
+  localStorage.removeItem('token')
+  localStorage.removeItem('user')
+  navigateTo('/login')
+}
 
 const viewModes = [
   { id: 'details', label: 'Details', icon: LayoutList },
@@ -1029,6 +1066,12 @@ onMounted(async () => {
           showViewMenu.value = false
         }
       }
+      if (showUserMenu.value) {
+        const target = e.target as HTMLElement
+        if (!target.closest('.user-menu-wrapper')) {
+          showUserMenu.value = false
+        }
+      }
     })
   }
   const folderParam = route.query.folder
@@ -1088,6 +1131,88 @@ onMounted(async () => {
 .header-actions {
   display: flex;
   gap: 0.5rem;
+  align-items: center;
+}
+
+.user-menu-wrapper {
+  position: relative;
+}
+
+.user-avatar-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.user-avatar-circle {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 9999px;
+  background-color: var(--color-brand-600);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.user-menu {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  right: 0;
+  background-color: var(--color-surface-0);
+  border: 1px solid var(--color-surface-3);
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  min-width: 160px;
+  z-index: 50;
+  padding: 0.25rem 0;
+}
+
+.user-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  background: none;
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  text-align: left;
+  text-decoration: none;
+  transition: background-color 0.1s ease;
+}
+
+.user-menu-item:hover {
+  background-color: var(--color-surface-1);
+}
+
+.user-menu-item.danger {
+  color: var(--color-danger);
+}
+
+.user-menu-item.danger:hover {
+  background-color: rgba(250, 82, 82, 0.08);
+}
+
+.user-menu-divider {
+  height: 1px;
+  background-color: var(--color-surface-2);
+  margin: 0.25rem 0;
+}
+
+.hide-mobile {
+  display: inline;
+}
+
+@media (max-width: 768px) {
+  .hide-mobile {
+    display: none;
+  }
 }
 
 @media (max-width: 768px) {
@@ -1352,6 +1477,13 @@ onMounted(async () => {
   min-width: 180px;
   z-index: 50;
   padding: 0.25rem 0;
+}
+
+@media (max-width: 768px) {
+  .view-menu {
+    right: auto;
+    left: 0;
+  }
 }
 
 .view-menu-item {
