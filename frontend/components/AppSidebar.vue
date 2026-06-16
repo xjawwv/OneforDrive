@@ -1,8 +1,5 @@
 <template>
   <div>
-    <button class="mobile-menu-btn" @click="sidebarOpen = true">
-      <Menu :size="20" />
-    </button>
     <div v-if="sidebarOpen" class="sidebar-backdrop" @click="sidebarOpen = false"></div>
     <aside class="sidebar" :class="{ 'sidebar-open': sidebarOpen }">
       <div class="sidebar-header">
@@ -44,7 +41,7 @@ import { HardDrive, FolderOpen, Settings, LogOut, User, Menu, X } from 'lucide-v
 
 const props = defineProps<{ current: string }>()
 
-const sidebarOpen = ref(false)
+const sidebarOpen = inject<Ref<boolean>>('sidebarOpen', ref(false))
 
 const userName = computed(() => {
   if (import.meta.client) {
