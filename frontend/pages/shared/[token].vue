@@ -1,91 +1,93 @@
 <template>
-  <div class="shared-page">
-    <div v-if="loading" class="shared-loading">
-      <Loader2 :size="32" class="spin" style="color: var(--color-brand-500);" />
-      <p>Loading shared file...</p>
+  <div class="shared-layout">
+    <div class="shared-sidebar">
+      <div class="sidebar-logo">
+        <HardDrive :size="20" color="white" />
+        <span>RouteStorage</span>
+      </div>
+      <div class="sidebar-info">
+        <p>Shared folder</p>
+      </div>
     </div>
-
-    <div v-else-if="error" class="shared-error">
-      <AlertTriangle :size="48" style="color: var(--color-danger); margin-bottom: 1rem;" />
-      <h2>{{ error }}</h2>
-      <p>The link may have expired or been revoked.</p>
-      <button class="btn-primary" @click="navigateTo('/login')" style="margin-top: 1.5rem;">
-        Go to RouteStorage
-      </button>
-    </div>
-
-    <div v-else-if="fileInfo" class="shared-content">
-      <div class="shared-header">
-        <div class="shared-logo">
-          <HardDrive :size="20" color="white" />
+    <div class="shared-main">
+      <header class="page-header">
+        <div class="breadcrumb">
+          <button class="breadcrumb-item active">
+            <Folder :size="14" />
+            <span>{{ fileInfo?.name || 'Loading...' }}</span>
+          </button>
         </div>
-        <span class="shared-brand">RouteStorage</span>
+        <div class="header-meta">
+          <span v-if="expiresAt" class="expiry-badge">
+            <Clock :size="12" />
+            Expires {{ formatDate(expiresAt) }}
+          </span>
+        </div>
+      </header>
+
+      <div v-if="loading" class="empty-state">
+        <Loader2 :size="24" class="spin" style="color: var(--color-text-muted);" />
       </div>
 
-      <div class="shared-card" :class="{ 'shared-card-wide': fileInfo.is_folder }">
-        <div class="shared-preview">
-          <template v-if="isImage">
-            <img :src="thumbnailUrl" class="shared-image" />
-          </template>
-          <template v-else-if="fileInfo.is_folder">
-            <div class="shared-icon-large folder-icon">
-              <Folder :size="48" />
-            </div>
-          </template>
-          <template v-else>
-            <div class="shared-icon-large file-icon">
+      <div v-else-if="error" class="empty-state">
+        <AlertTriangle :size="48" style="color: var(--color-danger); margin-bottom: 1rem;" />
+        <h3>{{ error }}</h3>
+        <p>The link may have expired or been revoked.</p>
+      </div>
+
+      <div v-else-if="fileInfo && !fileInfo.is_folder" class="file-grid-large">
+        <div class="file-card-large">
+          <div class="file-card-icon-large" :class="isImage ? 'file-type-image' : 'file-type-file'">
+            <template v-if="isImage">
+              <img :src="thumbnailUrl" class="file-thumb" />
+            </template>
+            <template v-else>
               <File :size="48" />
-            </div>
-          </template>
-        </div>
-
-        <div class="shared-info">
-          <h1 class="shared-name">{{ fileInfo.name }}</h1>
-          <div class="shared-meta">
-            <span v-if="!fileInfo.is_folder">{{ formatSize(fileInfo.size) }}</span>
-            <span v-if="!fileInfo.is_folder && fileInfo.size"> · </span>
-            <span>{{ fileInfo.is_folder ? `${children.length} item${children.length !== 1 ? 's' : ''}` : fileInfo.mime_type }}</span>
-            <span v-if="expiresAt"> · Expires {{ formatDate(expiresAt) }}</span>
+            </template>
           </div>
-        </div>
-
-        <div v-if="fileInfo.is_folder && children.length" class="shared-folder-list">
-          <div v-for="child in children" :key="child.id" class="shared-folder-item">
-            <div class="shared-folder-icon" :class="child.is_folder ? 'folder-icon' : 'file-icon'">
-              <Folder v-if="child.is_folder" :size="18" />
-              <File v-else :size="18" />
-            </div>
-            <span class="shared-folder-name">{{ child.name }}</span>
-            <span class="shared-folder-size">{{ child.is_folder ? '--' : formatSize(child.size) }}</span>
-          </div>
-        </div>
-
-        <div class="shared-actions">
-          <button v-if="!fileInfo.is_folder" class="btn-primary shared-download-btn" @click="downloadFile">
+          <span class="file-card-name">{{ fileInfo.name }}</span>
+          <div class="file-card-meta">{{ formatSize(fileInfo.size) }} · {{ fileInfo.mime_type }}</div>
+          <button class="btn-primary shared-download-btn" @click="downloadFile">
             <Download :size="16" />
             <span>Download</span>
           </button>
-          <button v-else class="btn-primary shared-download-btn" @click="navigateTo('/login')">
-            <FolderOpen :size="16" />
-            <span>Open in RouteStorage</span>
-          </button>
         </div>
       </div>
 
-      <div class="shared-footer">
-        <p>Shared via <strong>RouteStorage</strong></p>
+      <div v-else-if="fileInfo && fileInfo.is_folder" class="file-grid-large">
+        <div v-if="children.length === 0" class="empty-state">
+          <FolderOpen :size="48" style="color: var(--color-surface-3); margin-bottom: 1rem;" />
+          <h3>This folder is empty</h3>
+        </div>
+        <div v-for="child in children" :key="child.id" class="file-card-large">
+          <div class="file-card-icon-large" :class="child.is_folder ? 'file-icon-folder' : `file-type-${getChildType(child)}`">
+            <template v-if="child.is_folder">
+              <Folder :size="48" />
+            </template>
+            <template v-else-if="isChildImage(child)">
+              <img :src="childThumbnailUrl(child.id)" class="file-thumb" @error="(e: any) => e.target.style.display='none'" crossorigin="anonymous" />
+            </template>
+            <template v-else>
+              <Film v-if="getChildType(child) === 'video'" :size="48" />
+              <Music v-else-if="getChildType(child) === 'audio'" :size="48" />
+              <FileText v-else-if="getChildType(child) === 'doc'" :size="48" />
+              <File v-else :size="48" />
+            </template>
+          </div>
+          <span class="file-card-name">{{ child.name }}</span>
+          <div class="file-card-meta">{{ child.is_folder ? 'Folder' : formatSize(child.size) }}</div>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { Loader2, AlertTriangle, HardDrive, Download, FolderOpen, Folder, File } from 'lucide-vue-next'
+import { HardDrive, Folder, File, FolderOpen, Download, Loader2, AlertTriangle, Clock, Film, Music, FileText, Image } from 'lucide-vue-next'
 
 definePageMeta({ layout: false })
 
 const route = useRoute()
-const router = useRouter()
 
 const loading = ref(true)
 const error = ref('')
@@ -95,15 +97,34 @@ const expiresAt = ref('')
 const token = ref('')
 
 const imageExtensions = ['jpg','jpeg','png','gif','webp','bmp','svg','ico']
+const videoExtensions = ['mp4','avi','mkv','mov','wmv','flv','webm']
+const audioExtensions = ['mp3','wav','ogg','flac','aac','m4a']
+const docExtensions = ['pdf','doc','docx','xls','xlsx','ppt','pptx','txt','csv']
+
+const getFileExt = (name: string) => name.split('.').pop()?.toLowerCase() || ''
+
 const isImage = computed(() => {
   if (!fileInfo.value || fileInfo.value.is_folder || !fileInfo.value.name) return false
-  const ext = fileInfo.value.name.split('.').pop()?.toLowerCase()
-  return imageExtensions.includes(ext || '')
+  return imageExtensions.includes(getFileExt(fileInfo.value.name))
 })
 
+const isChildImage = (child: any) => !child.is_folder && imageExtensions.includes(getFileExt(child.name))
+const getChildType = (child: any) => {
+  const ext = getFileExt(child.name)
+  if (videoExtensions.includes(ext)) return 'video'
+  if (audioExtensions.includes(ext)) return 'audio'
+  if (docExtensions.includes(ext)) return 'doc'
+  return 'file'
+}
+
 const thumbnailUrl = computed(() => {
+  if (!fileInfo.value) return ''
   return `${useRuntimeConfig().public.apiBase}/shared/${token.value}/thumbnail`
 })
+
+const childThumbnailUrl = (childId: number) => {
+  return `${useRuntimeConfig().public.apiBase}/shared/${token.value}/thumbnail?child_id=${childId}`
+}
 
 const formatSize = (bytes: number) => {
   if (!bytes) return '0 B'
@@ -144,205 +165,201 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.shared-page {
+.shared-layout {
+  display: flex;
   min-height: 100vh;
   background-color: var(--color-surface-1);
-  display: flex;
-  flex-direction: column;
 }
 
-.shared-loading {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1rem;
+.shared-sidebar {
+  width: 240px;
+  background-color: var(--color-surface-0);
+  border-right: 1px solid var(--color-surface-2);
+  padding: 1.5rem;
+  flex-shrink: 0;
 }
 
-.shared-loading p {
-  font-size: 0.875rem;
-  color: var(--color-text-muted);
-  margin: 0;
-}
-
-.shared-error {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 2rem;
-}
-
-.shared-error h2 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--color-text-primary);
-  margin: 0 0 0.375rem 0;
-}
-
-.shared-error p {
-  font-size: 0.875rem;
-  color: var(--color-text-muted);
-  margin: 0;
-}
-
-.shared-header {
+.sidebar-logo {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 1rem 2rem;
-  border-bottom: 1px solid var(--color-surface-2);
+  margin-bottom: 2rem;
 }
 
-.shared-logo {
-  width: 2rem;
-  height: 2rem;
-  background-color: var(--color-brand-600);
-  border-radius: 0.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.shared-brand {
+.sidebar-logo span {
   font-size: 1rem;
   font-weight: 700;
   color: var(--color-text-primary);
 }
 
-.shared-content {
+.sidebar-info p {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.shared-main {
   flex: 1;
+  padding: 2rem 2.5rem;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.75rem;
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.breadcrumb-item {
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: default;
+  padding: 0.25rem 0.375rem;
+  border-radius: 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.breadcrumb-item.active {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.header-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.expiry-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  background-color: var(--color-surface-2);
+  padding: 0.375rem 0.625rem;
+  border-radius: 9999px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 5rem 1.5rem;
+}
+
+.empty-state h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0 0 0.375rem 0;
+}
+
+.empty-state p {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.file-grid-large {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 1rem;
+}
+
+.file-card-large {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 3rem 1.5rem;
-}
-
-.shared-card {
-  background-color: var(--color-surface-0);
-  border: 1px solid var(--color-surface-2);
-  border-radius: 1rem;
-  padding: 2rem;
-  width: 100%;
-  max-width: 480px;
-  text-align: center;
-}
-
-.shared-card-wide {
-  max-width: 640px;
-  text-align: left;
-}
-
-.shared-preview {
-  margin-bottom: 1.5rem;
-  display: flex;
-  justify-content: center;
-}
-
-.shared-image {
-  max-width: 100%;
-  max-height: 300px;
-  object-fit: contain;
+  padding: 1rem;
   border-radius: 0.5rem;
+  cursor: default;
+  transition: background-color 0.1s ease;
 }
 
-.shared-icon-large {
-  width: 6rem;
-  height: 6rem;
-  border-radius: 1rem;
+.file-card-large:hover {
+  background-color: var(--color-surface-0);
+}
+
+.file-card-icon-large {
+  width: 8rem;
+  height: 8rem;
+  border-radius: 0.75rem;
   display: flex;
   align-items: center;
   justify-content: center;
+  margin-bottom: 0.625rem;
+  overflow: hidden;
 }
 
-.folder-icon {
-  background-color: rgba(76, 110, 245, 0.1);
-  color: var(--color-brand-600);
+.file-type-image {
+  background-color: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
 }
 
-.file-icon {
+.file-type-video {
+  background-color: rgba(168, 85, 247, 0.1);
+  color: #a855f7;
+}
+
+.file-type-audio {
+  background-color: rgba(249, 115, 22, 0.1);
+  color: #f97316;
+}
+
+.file-type-doc {
+  background-color: rgba(34, 197, 94, 0.1);
+  color: #22c55e;
+}
+
+.file-type-file {
   background-color: var(--color-surface-2);
   color: var(--color-text-muted);
 }
 
-.shared-info {
-  margin-bottom: 1.5rem;
+.file-icon-folder {
+  background-color: rgba(76, 110, 245, 0.1);
+  color: var(--color-brand-600);
 }
 
-.shared-name {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: var(--color-text-primary);
-  margin: 0 0 0.5rem 0;
-  word-break: break-word;
+.file-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
-.shared-meta {
+.file-card-name {
   font-size: 0.8125rem;
+  color: var(--color-text-primary);
+  text-align: center;
+  word-break: break-word;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.file-card-meta {
+  font-size: 0.6875rem;
   color: var(--color-text-muted);
+  margin-top: 0.25rem;
+  margin-bottom: 0.5rem;
 }
 
 .shared-download-btn {
   width: 100%;
-  padding: 0.75rem 1.5rem;
-}
-
-.shared-folder-list {
-  margin: 1.25rem 0;
-  border: 1px solid var(--color-surface-2);
-  border-radius: 0.5rem;
-  overflow: hidden;
-}
-
-.shared-folder-item {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid var(--color-surface-2);
-}
-
-.shared-folder-item:last-child {
-  border-bottom: none;
-}
-
-.shared-folder-icon {
-  width: 2rem;
-  height: 2rem;
-  border-radius: 0.375rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.shared-folder-name {
-  flex: 1;
-  font-size: 0.8125rem;
-  color: var(--color-text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.shared-folder-size {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-  flex-shrink: 0;
-}
-
-.shared-footer {
-  margin-top: 3rem;
-  text-align: center;
-}
-
-.shared-footer p {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-  margin: 0;
+  margin-top: 0.5rem;
 }
 
 .btn-primary {
