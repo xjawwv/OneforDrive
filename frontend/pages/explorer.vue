@@ -1267,38 +1267,36 @@ onMounted(async () => {
 }
 
 @media (max-width: 768px) {
-  .file-col-date {
-    display: none;
-  }
-
-  .file-list-header span:nth-child(3) {
+  .file-list-header {
     display: none;
   }
 
   .file-row {
-    padding: 0.875rem 0.75rem;
+    flex-wrap: wrap;
+    gap: 0.125rem 0.5rem;
+    padding: 0.75rem;
+  }
+
+  .file-col-name {
+    flex: 1 1 50%;
+    min-width: 0;
+  }
+
+  .file-col-size {
+    flex: 0 0 auto;
+    font-size: 0.75rem;
+    margin-left: auto;
+  }
+
+  .file-col-date {
+    width: 100%;
+    text-align: left;
+    font-size: 0.6875rem;
+    margin-top: -0.125rem;
   }
 
   .file-col-actions {
     opacity: 1;
-  }
-}
-
-@media (max-width: 480px) {
-  .file-col-size {
-    display: none;
-  }
-
-  .file-list-header span:nth-child(2) {
-    display: none;
-  }
-
-  .file-name {
-    font-size: 0.75rem;
-  }
-
-  .file-row {
-    padding: 0.5rem 0.25rem;
   }
 }
 
