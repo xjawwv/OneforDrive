@@ -298,6 +298,49 @@ func (h *FileHandler) CancelDownload(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "cancelled"})
 }
 
+func (h *FileHandler) Thumbnail(c *gin.Context) {
+	userID := c.GetInt64("user_id")
+	id := c.Param("id")
+
+	var driveFileID string
+	var accountID int64
+	var mimeType string
+	err := h.DB.QueryRow(
+		"SELECT fc.drive_file_id, fc.account_id, f.mime_type FROM file_chunks fc JOIN files f ON fc.file_id = f.id WHERE fc.file_id = ? AND f.user_id = ? ORDER BY fc.chunk_index ASC LIMIT 1",
+		id, userID,
+	).Scan(&driveFileID, &accountID, &mimeType)
+	if err != nil || driveFileID == "" {
+		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
+		return
+	}
+
+	accessToken, err := service.GetAccessTokenForAccount(h.DB, accountID)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "drive access unavailable"})
+		return
+	}
+
+	driveURL := fmt.Sprintf("https://www.googleapis.com/drive/v3/files/%s?alt=media", driveFileID)
+	req, err := http.NewRequest("GET", driveURL, nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create request"})
+		return
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch thumbnail"})
+		return
+	}
+	defer resp.Body.Close()
+
+	c.Header("Content-Type", mimeType)
+	c.Header("Cache-Control", "public, max-age=86400")
+	c.Status(http.StatusOK)
+	io.Copy(c.Writer, resp.Body)
+}
+
 func (h *FileHandler) DownloadProgress(c *gin.Context) {
 	sessionID := c.Query("session")
 	if sessionID == "" {

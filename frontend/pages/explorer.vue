@@ -123,12 +123,18 @@
             <div v-else-if="viewMode === 'large'" class="file-grid-large">
               <div v-for="file in files" :key="file.id" class="file-card-large" @dblclick="file.is_folder ? navigateToFolder(file.id) : null">
                 <div class="file-card-icon-large" :class="file.is_folder ? 'file-icon-folder' : `file-type-${isImage(file) ? 'image' : isVideo(file) ? 'video' : isAudio(file) ? 'audio' : isDoc(file) ? 'doc' : 'file'}`">
-                  <Folder v-if="file.is_folder" :size="36" />
-                  <Image v-else-if="isImage(file)" :size="36" />
-                  <Film v-else-if="isVideo(file)" :size="36" />
-                  <Music v-else-if="isAudio(file)" :size="36" />
-                  <FileText v-else-if="isDoc(file)" :size="36" />
-                  <File v-else :size="36" />
+                  <template v-if="file.is_folder">
+                    <Folder :size="36" />
+                  </template>
+                  <template v-else-if="isImage(file)">
+                    <img :src="`${apiBase}/api/files/${file.id}/thumbnail`" class="file-thumb" @error="(e: any) => e.target.style.display='none'" />
+                  </template>
+                  <template v-else>
+                    <Film v-if="isVideo(file)" :size="36" />
+                    <Music v-else-if="isAudio(file)" :size="36" />
+                    <FileText v-else-if="isDoc(file)" :size="36" />
+                    <File v-else :size="36" />
+                  </template>
                 </div>
                 <span class="file-card-name" :class="{ 'folder-name': file.is_folder }" @click="file.is_folder ? navigateToFolder(file.id) : null">{{ file.name }}</span>
                 <div class="file-card-actions">
@@ -142,12 +148,18 @@
             <div v-else-if="viewMode === 'medium'" class="file-grid-medium">
               <div v-for="file in files" :key="file.id" class="file-card-medium" @dblclick="file.is_folder ? navigateToFolder(file.id) : null">
                 <div class="file-card-icon-medium" :class="file.is_folder ? 'file-icon-folder' : `file-type-${isImage(file) ? 'image' : isVideo(file) ? 'video' : isAudio(file) ? 'audio' : isDoc(file) ? 'doc' : 'file'}`">
-                  <Folder v-if="file.is_folder" :size="24" />
-                  <Image v-else-if="isImage(file)" :size="24" />
-                  <Film v-else-if="isVideo(file)" :size="24" />
-                  <Music v-else-if="isAudio(file)" :size="24" />
-                  <FileText v-else-if="isDoc(file)" :size="24" />
-                  <File v-else :size="24" />
+                  <template v-if="file.is_folder">
+                    <Folder :size="24" />
+                  </template>
+                  <template v-else-if="isImage(file)">
+                    <img :src="`${apiBase}/api/files/${file.id}/thumbnail`" class="file-thumb-sm" @error="(e: any) => e.target.style.display='none'" />
+                  </template>
+                  <template v-else>
+                    <Film v-if="isVideo(file)" :size="24" />
+                    <Music v-else-if="isAudio(file)" :size="24" />
+                    <FileText v-else-if="isDoc(file)" :size="24" />
+                    <File v-else :size="24" />
+                  </template>
                 </div>
                 <span class="file-card-name-sm" :class="{ 'folder-name': file.is_folder }" @click="file.is_folder ? navigateToFolder(file.id) : null">{{ file.name }}</span>
               </div>
@@ -1121,6 +1133,13 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   margin-bottom: 0.625rem;
+  overflow: hidden;
+}
+
+.file-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .file-card-name {
@@ -1177,6 +1196,13 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   margin-bottom: 0.5rem;
+  overflow: hidden;
+}
+
+.file-thumb-sm {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .file-card-name-sm {

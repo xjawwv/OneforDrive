@@ -68,6 +68,7 @@ func main() {
 		files.POST("/upload", fileH.UploadFile)
 		files.POST("/folder", fileH.CreateFolder)
 		files.GET("/:id/download", fileH.DownloadFile)
+		files.GET("/:id/thumbnail", fileH.Thumbnail)
 		files.POST("/:id/download", fileH.StartDownload)
 		files.POST("/download-by-name", fileH.StartDownloadByName)
 		files.GET("/:id/download-progress", fileH.DownloadProgress)
