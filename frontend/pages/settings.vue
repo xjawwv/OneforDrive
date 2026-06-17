@@ -46,12 +46,7 @@
         <div v-for="account in accounts" :key="account.id" class="card account-card">
           <div class="account-info">
             <div class="account-avatar">
-              <svg width="20" height="20" viewBox="0 0 87.3 78" fill="none">
-                <path d="m43.65 2.2-21.3 36.8h42.5z" fill="#0066DA"/>
-                <path d="m22.35 39 21.3 36.8h42.5l-21.3-36.8z" fill="#00AC47"/>
-                <path d="m6.6 78l21.3-36.8L43.65 2.2 22.35 39z" fill="#EA4335"/>
-                <path d="m43.65 2.2 21.3 36.8-21.3 36.8z" fill="#FFBA00" opacity=".3"/>
-              </svg>
+              <img src="/assets/Google_Drive_Logo_128px.png" alt="Google Drive" style="width:20px;height:20px;" />
             </div>
             <div>
               <div style="font-weight: 500; color: var(--color-text-primary); font-size: 0.875rem;">{{ account.email }}</div>
