@@ -109,23 +109,6 @@
               </div>
             </div>
 
-            <!-- List view -->
-            <div v-else-if="viewMode === 'list'" class="file-list-simple">
-              <div v-for="file in files" :key="file.id" class="file-row-simple" @click="isImage(file) ? openLightbox(file) : (file.is_folder ? navigateToFolder(file.id) : null)">
-                <div class="file-icon-sm" :class="file.is_folder ? 'file-icon-folder' : `file-type-${isImage(file) ? 'image' : 'file'}`">
-                  <template v-if="file.is_folder"><Folder :size="14" /></template>
-                  <template v-else-if="isImage(file)"><img :src="thumbnailUrl(file.id)" class="file-thumb-sm" @error="(e: any) => e.target.style.display='none'" crossorigin="anonymous" /></template>
-                  <template v-else><File :size="14" /></template>
-                </div>
-                <span class="file-name" :class="{ 'folder-name': file.is_folder }">{{ file.name }}</span>
-                <div class="file-row-actions">
-                  <button class="icon-btn" @click="openContextMenu($event, file)" title="More">
-                    <MoreVertical :size="14" />
-                  </button>
-                </div>
-              </div>
-            </div>
-
             <!-- Large icons -->
             <div v-else-if="viewMode === 'large'" class="file-grid-large">
               <div v-for="file in files" :key="file.id" class="file-card-large" @dblclick="file.is_folder ? navigateToFolder(file.id) : null">
@@ -400,7 +383,7 @@
 </template>
 
 <script setup lang="ts">
-import { FolderOpen, FolderPlus, Upload, Folder, File, Trash2, Download, ChevronRight, Home, Loader2, X, AlertTriangle, LayoutGrid, List, LayoutList, Grip, Image, Film, Music, FileText, Minus, Plus, Search, Share2, Copy, Check, MoreVertical } from 'lucide-vue-next'
+import { FolderOpen, FolderPlus, Upload, Folder, File, Trash2, Download, ChevronRight, Home, Loader2, X, AlertTriangle, LayoutGrid, Grip, Image, Film, Music, FileText, Minus, Plus, Search, Share2, Copy, Check, MoreVertical } from 'lucide-vue-next'
 
 definePageMeta({ layout: false })
 
@@ -437,11 +420,9 @@ const sidebarOpen = ref(false)
 provide('sidebarOpen', sidebarOpen)
 
 const viewModes = [
-  { id: 'details', label: 'Details', icon: LayoutList },
-  { id: 'list', label: 'List', icon: List },
+  { id: 'details', label: 'Details', icon: LayoutGrid },
   { id: 'large', label: 'Large icons', icon: LayoutGrid },
   { id: 'medium', label: 'Medium icons', icon: Grip },
-  { id: 'small', label: 'Small icons', icon: LayoutGrid },
 ]
 
 onMounted(() => {
@@ -1436,7 +1417,7 @@ onMounted(async () => {
 .view-menu {
   position: absolute;
   top: calc(100% + 0.25rem);
-  right: 0;
+  left: 0;
   background-color: var(--color-surface-0);
   border: 1px solid var(--color-surface-3);
   border-radius: 0.5rem;
@@ -1486,47 +1467,6 @@ onMounted(async () => {
 .menu-enter-active { transition: opacity 0.1s ease, transform 0.1s ease; }
 .menu-leave-active { transition: opacity 0.08s ease, transform 0.08s ease; }
 .menu-enter-from, .menu-leave-to { opacity: 0; transform: translateY(-4px); }
-
-/* List view */
-.file-list-simple {
-  display: flex;
-  flex-direction: column;
-}
-
-.file-row-simple {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.375rem 0.5rem;
-  border-radius: 0.25rem;
-  transition: background-color 0.1s ease;
-}
-
-.file-row-simple:hover {
-  background-color: var(--color-surface-1);
-}
-
-.file-icon-sm {
-  width: 1.5rem;
-  height: 1.5rem;
-  border-radius: 0.25rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.file-row-actions {
-  margin-left: auto;
-  display: flex;
-  gap: 0.25rem;
-  opacity: 0;
-  transition: opacity 0.1s ease;
-}
-
-.file-row-simple:hover .file-row-actions {
-  opacity: 1;
-}
 
 /* Large icons */
 .file-grid-large {
