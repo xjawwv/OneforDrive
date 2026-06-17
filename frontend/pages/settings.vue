@@ -46,7 +46,7 @@
         <div v-for="account in accounts" :key="account.id" class="card account-card">
           <div class="account-info">
             <div class="account-avatar">
-              <HardDrive :size="20" style="color: var(--color-brand-600);" />
+              <svg width="20" height="20" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg"><path d="m6.8 78 4.1-7.1h69.4l4.1 7.1z" fill="#0066da"/><path d="m32.4 78 4.1-7.1h39.4l-4.1 7.1z" fill="#00ac47"/><path d="m43.65 2.2-21.3 36.8h42.5z" fill="#ea4335"/><path d="m6.8 78 10.8-18.8h41.6l-10.8 18.8z" fill="#00832d"/><path d="m43.65 2.2-21.3 36.8 10.8 18.8z" fill="#2684fc"/><path d="m43.65 2.2 21.2 36.8-10.8 18.8z" fill="#ffba00"/></svg>
             </div>
             <div>
               <div style="font-weight: 500; color: var(--color-text-primary); font-size: 0.875rem;">{{ account.email }}</div>
