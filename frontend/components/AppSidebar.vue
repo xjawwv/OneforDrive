@@ -22,12 +22,7 @@
       </nav>
 
       <div class="sidebar-footer">
-        <div class="sidebar-user">
-          <div class="sidebar-avatar">
-            <User :size="16" />
-          </div>
-          <span class="sidebar-user-name">{{ userName }}</span>
-        </div>
+        <span class="sidebar-user-name">{{ userName }}</span>
         <button class="sidebar-logout" @click="logout" title="Sign out">
           <LogOut :size="16" />
         </button>
@@ -37,7 +32,7 @@
 </template>
 
 <script setup lang="ts">
-import { HardDrive, FolderOpen, Settings, LogOut, User, Menu, X } from 'lucide-vue-next'
+import { HardDrive, FolderOpen, Settings, LogOut, Menu, X } from 'lucide-vue-next'
 
 const props = defineProps<{ current: string }>()
 
@@ -195,25 +190,6 @@ const logout = () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.sidebar-user {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-width: 0;
-}
-
-.sidebar-avatar {
-  width: 1.75rem;
-  height: 1.75rem;
-  border-radius: 9999px;
-  background-color: var(--color-surface-2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-muted);
-  flex-shrink: 0;
 }
 
 .sidebar-user-name {
