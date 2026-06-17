@@ -1,6 +1,6 @@
 <template>
   <div class="app-layout">
-    <AppSidebar current="settings" />
+    <AppSidebar current="users" />
     <div class="app-main">
       <AppTopBar title="User Management" subtitle="View and manage user roles" current-page="settings" @hamburger-click="sidebarOpen = true" />
 
