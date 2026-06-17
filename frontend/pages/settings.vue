@@ -46,7 +46,7 @@
         <div v-for="account in accounts" :key="account.id" class="card account-card">
           <div class="account-info">
             <div class="account-avatar">
-              <User :size="20" style="color: var(--color-brand-600);" />
+              <HardDrive :size="20" style="color: var(--color-brand-600);" />
             </div>
             <div>
               <div style="font-weight: 500; color: var(--color-text-primary); font-size: 0.875rem;">{{ account.email }}</div>
@@ -76,7 +76,7 @@
 </template>
 
 <script setup lang="ts">
-import { Plus, Trash2, RefreshCw } from 'lucide-vue-next'
+import { Plus, Trash2, RefreshCw, HardDrive } from 'lucide-vue-next'
 
 definePageMeta({ layout: false })
 
