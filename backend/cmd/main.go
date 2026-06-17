@@ -37,6 +37,11 @@ func main() {
 	fileH := &handler.FileHandler{DB: repository.DB}
 	storageH := &handler.StorageHandler{DB: repository.DB}
 	shareH := &handler.ShareHandler{DB: repository.DB}
+	rbacH := &handler.RBACHandler{DB: repository.DB}
+
+	rbac := func(perm string) gin.HandlerFunc {
+		return middleware.RequirePermission(perm)
+	}
 
 	auth := r.Group("/api/auth")
 	{
@@ -86,6 +91,20 @@ func main() {
 	r.GET("/shared/:token/download", shareH.SharedDownload)
 	r.GET("/shared/:token/download-all", shareH.SharedDownloadAll)
 	r.GET("/shared/:token/thumbnail", shareH.SharedThumbnail)
+
+	rbacRoutes := r.Group("/api/rbac")
+	rbacRoutes.Use(middleware.AuthMiddleware(jwtSecret))
+	{
+		rbacRoutes.GET("/me/permissions", rbacH.GetMyPermissions)
+		rbacRoutes.GET("/roles", rbac("users.manage"), rbacH.ListRoles)
+		rbacRoutes.POST("/roles", rbac("users.manage"), rbacH.CreateRole)
+		rbacRoutes.GET("/permissions", rbac("users.manage"), rbacH.ListPermissions)
+		rbacRoutes.GET("/roles/:id/permissions", rbacH.GetRolePermissions)
+		rbacRoutes.PUT("/roles/:id/permissions", rbac("users.manage"), rbacH.SetRolePermissions)
+		rbacRoutes.GET("/users/:id/roles", rbacH.GetUserRoles)
+		rbacRoutes.POST("/users/:id/roles", rbac("users.manage"), rbacH.AssignRole)
+		rbacRoutes.DELETE("/users/:id/roles/:role_id", rbac("users.manage"), rbacH.RemoveRole)
+	}
 
 	port := getEnv("PORT", "8080")
 	log.Printf("Server starting on :%s", port)

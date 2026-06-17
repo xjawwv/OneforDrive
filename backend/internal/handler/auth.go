@@ -51,6 +51,9 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	}
 
 	id, _ := result.LastInsertId()
+
+	h.DB.Exec("INSERT INTO user_roles (user_id, role_id) VALUES (?, (SELECT id FROM roles WHERE name = 'member'))", id)
+
 	c.JSON(http.StatusCreated, gin.H{
 		"id":    id,
 		"email": req.Email,

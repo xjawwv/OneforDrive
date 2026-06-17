@@ -103,6 +103,34 @@ func createTables() {
 			FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE,
 			FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
 		)`,
+		`CREATE TABLE IF NOT EXISTS roles (
+			id BIGINT AUTO_INCREMENT PRIMARY KEY,
+			name VARCHAR(100) UNIQUE NOT NULL,
+			description VARCHAR(255),
+			is_system BOOLEAN DEFAULT FALSE,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE IF NOT EXISTS permissions (
+			id BIGINT AUTO_INCREMENT PRIMARY KEY,
+			` + "`key`" + ` VARCHAR(150) UNIQUE NOT NULL,
+			description VARCHAR(255),
+			category VARCHAR(100),
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE IF NOT EXISTS role_permissions (
+			role_id BIGINT NOT NULL,
+			permission_id BIGINT NOT NULL,
+			PRIMARY KEY (role_id, permission_id),
+			FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
+			FOREIGN KEY (permission_id) REFERENCES permissions(id) ON DELETE CASCADE
+		)`,
+		`CREATE TABLE IF NOT EXISTS user_roles (
+			user_id BIGINT NOT NULL,
+			role_id BIGINT NOT NULL,
+			PRIMARY KEY (user_id, role_id),
+			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+			FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
+		)`,
 	}
 
 	for _, q := range queries {
@@ -114,6 +142,8 @@ func createTables() {
 	DB.Exec("ALTER TABLE files ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at")
 	DB.Exec("ALTER TABLE files ADD COLUMN upload_progress INT DEFAULT 100 AFTER status")
 	DB.Exec("ALTER TABLE drive_accounts ADD COLUMN route_storage_folder_id VARCHAR(255) NULL AFTER capacity_used")
+
+	seedRBAC()
 }
 
 func getEnv(key, fallback string) string {
@@ -121,4 +151,26 @@ func getEnv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func seedRBAC() {
+	DB.Exec("INSERT IGNORE INTO roles (name, description, is_system) VALUES ('owner', 'Full system access', TRUE)")
+	DB.Exec("INSERT IGNORE INTO roles (name, description, is_system) VALUES ('admin', 'Manage users and all storage', TRUE)")
+	DB.Exec("INSERT IGNORE INTO roles (name, description, is_system) VALUES ('member', 'Standard user, own storage only', TRUE)")
+
+	DB.Exec("INSERT IGNORE INTO permissions (`key`, description, category) VALUES ('users.manage', 'Create, delete, promote users', 'users')")
+	DB.Exec("INSERT IGNORE INTO permissions (`key`, description, category) VALUES ('users.view_all', 'View all users', 'users')")
+	DB.Exec("INSERT IGNORE INTO permissions (`key`, description, category) VALUES ('drive_accounts.manage_own', 'Connect/remove own Drive accounts', 'drive_accounts')")
+	DB.Exec("INSERT IGNORE INTO permissions (`key`, description, category) VALUES ('drive_accounts.manage_all', 'Connect/remove any user Drive accounts', 'drive_accounts')")
+	DB.Exec("INSERT IGNORE INTO permissions (`key`, description, category) VALUES ('files.upload', 'Upload files', 'files')")
+	DB.Exec("INSERT IGNORE INTO permissions (`key`, description, category) VALUES ('files.delete_own', 'Delete own files', 'files')")
+	DB.Exec("INSERT IGNORE INTO permissions (`key`, description, category) VALUES ('files.delete_all', 'Delete any user file', 'files')")
+	DB.Exec("INSERT IGNORE INTO permissions (`key`, description, category) VALUES ('files.view_all', 'View all users files', 'files')")
+	DB.Exec("INSERT IGNORE INTO permissions (`key`, description, category) VALUES ('storage.view_stats', 'View system-wide storage stats', 'storage')")
+
+	DB.Exec("INSERT IGNORE INTO role_permissions (role_id, permission_id) SELECT (SELECT id FROM roles WHERE name = 'owner'), id FROM permissions")
+	DB.Exec("INSERT IGNORE INTO role_permissions (role_id, permission_id) SELECT (SELECT id FROM roles WHERE name = 'admin'), id FROM permissions")
+	DB.Exec("INSERT IGNORE INTO role_permissions (role_id, permission_id) SELECT (SELECT id FROM roles WHERE name = 'member'), id FROM permissions WHERE `key` IN ('drive_accounts.manage_own', 'files.upload', 'files.delete_own')")
+
+	log.Println("RBAC seed data inserted")
 }
