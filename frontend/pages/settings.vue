@@ -2,13 +2,14 @@
   <div class="app-layout">
     <AppSidebar current="settings" />
     <div class="app-main">
-      <AppTopBar title="Drive Accounts" subtitle="Manage your connected Google Drive accounts" current-page="settings" @hamburger-click="sidebarOpen = true" />
-      <div class="action-toolbar">
-        <button class="btn-primary" @click="connectAccount">
-          <Plus :size="16" />
-          <span>Connect Drive</span>
-        </button>
-      </div>
+      <AppTopBar title="Drive Accounts" subtitle="Manage your connected Google Drive accounts" current-page="settings" @hamburger-click="sidebarOpen = true">
+        <template #actions>
+          <button class="btn-primary" @click="connectAccount">
+            <Plus :size="16" />
+            <span>Connect Drive</span>
+          </button>
+        </template>
+      </AppTopBar>
 
       <div class="card" style="margin-bottom: 1.5rem;">
         <h2 class="section-title">Storage Overview</h2>

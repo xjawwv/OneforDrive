@@ -10,6 +10,7 @@
           <p class="page-subtitle">{{ subtitle }}</p>
         </slot>
       </div>
+      <slot name="actions"></slot>
       <div class="user-menu-wrapper">
         <button class="avatar-btn" @click="showUserMenu = !showUserMenu">
           <div class="avatar-circle">{{ userInitial }}</div>
