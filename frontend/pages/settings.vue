@@ -32,7 +32,7 @@
         </div>
       </div>
 
-      <div v-if="accounts.length === 0" class="card" style="text-align: center; padding: 3rem 1.5rem;">
+      <div v-if="!loading && accounts.length === 0" class="card" style="text-align: center; padding: 3rem 1.5rem;">
         <CloudOff :size="40" style="color: var(--color-text-muted); margin: 0 auto 1rem auto; display: block;" />
         <h3 style="font-size: 1rem; font-weight: 600; color: var(--color-text-primary); margin: 0 0 0.375rem 0;">No drive accounts connected</h3>
         <p style="font-size: 0.8125rem; color: var(--color-text-muted); margin: 0 0 1.5rem 0;">Connect a Google Drive account to start storing files.</p>
@@ -83,6 +83,7 @@ definePageMeta({ layout: false })
 const { apiFetch } = useApi()
 
 const accounts = ref<any[]>([])
+const loading = ref(true)
 const stats = ref({ total_files: 0, total_size_bytes: 0, total_drive_accounts: 0, active_drive_accounts: 0, total_capacity_bytes: 0, total_used_bytes: 0 })
 const sidebarOpen = ref(false)
 
@@ -101,7 +102,9 @@ const drivePercent = (account: any) => {
 }
 
 const loadAccounts = async () => {
+  loading.value = true
   try { accounts.value = (await apiFetch('/api/accounts')) as any[] } catch {}
+  loading.value = false
 }
 
 const loadStats = async () => {
