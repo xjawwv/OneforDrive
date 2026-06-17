@@ -12,20 +12,6 @@
       </AppTopBar>
 
       <div class="card" style="margin-bottom: 1.5rem;">
-        <h2 class="section-title">Administration</h2>
-        <div class="admin-nav">
-          <NuxtLink v-if="can('users.manage')" to="/admin/roles" class="admin-link">
-            <ShieldCheck :size="18" />
-            <span>Role Management</span>
-          </NuxtLink>
-          <NuxtLink v-if="can('users.manage')" to="/admin/users" class="admin-link">
-            <Users :size="18" />
-            <span>User Management</span>
-          </NuxtLink>
-        </div>
-      </div>
-
-      <div class="card" style="margin-bottom: 1.5rem;">
         <h2 class="section-title">Storage Overview</h2>
         <div class="stats-grid">
           <div class="stat-item">
