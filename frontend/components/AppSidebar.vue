@@ -11,25 +11,44 @@
       </div>
 
       <nav class="sidebar-nav">
-        <NuxtLink to="/explorer" class="sidebar-link" :class="{ active: current === 'explorer' }" @click="sidebarOpen = false">
-          <FolderOpen :size="18" />
-          <span>Explorer</span>
-        </NuxtLink>
-        <NuxtLink to="/settings" class="sidebar-link" :class="{ active: current === 'settings' }" @click="sidebarOpen = false">
-          <Settings :size="18" />
-          <span>Settings</span>
-        </NuxtLink>
+        <div class="nav-section">
+          <div class="nav-label">FILES</div>
+          <NuxtLink to="/explorer" class="sidebar-link" :class="{ active: current === 'explorer' }" @click="sidebarOpen = false">
+            <FolderOpen :size="18" />
+            <span>Explorer</span>
+          </NuxtLink>
+        </div>
+        <div class="nav-section">
+          <div class="nav-label">ACCOUNT</div>
+          <NuxtLink to="/settings" class="sidebar-link" :class="{ active: current === 'settings' }" @click="sidebarOpen = false">
+            <Settings :size="18" />
+            <span>Settings</span>
+          </NuxtLink>
+        </div>
+        <div v-if="hasAdminAccess" class="nav-section">
+          <div class="nav-label">ADMIN</div>
+          <NuxtLink to="/admin/roles" class="sidebar-link" :class="{ active: current === 'roles' }" @click="sidebarOpen = false">
+            <ShieldCheck :size="18" />
+            <span>Role Management</span>
+          </NuxtLink>
+          <NuxtLink to="/admin/users" class="sidebar-link" :class="{ active: current === 'users' }" @click="sidebarOpen = false">
+            <Users :size="18" />
+            <span>User Management</span>
+          </NuxtLink>
+        </div>
       </nav>
     </aside>
   </div>
 </template>
 
 <script setup lang="ts">
-import { HardDrive, FolderOpen, Settings, Menu, X } from 'lucide-vue-next'
+import { HardDrive, FolderOpen, Settings, ShieldCheck, Users, Menu, X } from 'lucide-vue-next'
 
 const props = defineProps<{ current: string }>()
 
 const sidebarOpen = inject<Ref<boolean>>('sidebarOpen', ref(false))
+const { can } = usePermissions()
+const hasAdminAccess = computed(() => can('users.manage'))
 </script>
 
 <style scoped>
@@ -135,7 +154,19 @@ const sidebarOpen = inject<Ref<boolean>>('sidebarOpen', ref(false))
   padding: 0.5rem 0.75rem;
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+}
+
+.nav-section {
+  margin-bottom: 0.75rem;
+}
+
+.nav-label {
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.5rem 0.75rem 0.25rem 0.75rem;
 }
 
 .sidebar-link {
