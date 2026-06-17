@@ -20,39 +20,16 @@
           <span>Settings</span>
         </NuxtLink>
       </nav>
-
-      <div class="sidebar-footer">
-        <span class="sidebar-user-name">{{ userName }}</span>
-        <button class="sidebar-logout" @click="logout" title="Sign out">
-          <LogOut :size="16" />
-        </button>
-      </div>
     </aside>
   </div>
 </template>
 
 <script setup lang="ts">
-import { HardDrive, FolderOpen, Settings, LogOut, Menu, X } from 'lucide-vue-next'
+import { HardDrive, FolderOpen, Settings, Menu, X } from 'lucide-vue-next'
 
 const props = defineProps<{ current: string }>()
 
 const sidebarOpen = inject<Ref<boolean>>('sidebarOpen', ref(false))
-
-const userName = computed(() => {
-  if (import.meta.client) {
-    const user = localStorage.getItem('user')
-    if (user) {
-      try { return JSON.parse(user).name } catch { return 'User' }
-    }
-  }
-  return 'User'
-})
-
-const logout = () => {
-  localStorage.removeItem('token')
-  localStorage.removeItem('user')
-  navigateTo('/login')
-}
 </script>
 
 <style scoped>
@@ -182,41 +159,6 @@ const logout = () => {
 .sidebar-link.active {
   background-color: var(--color-brand-50);
   color: var(--color-brand-700);
-}
-
-.sidebar-footer {
-  padding: 0.75rem 1.25rem;
-  border-top: 1px solid var(--color-surface-2);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.sidebar-user-name {
-  font-size: 0.8125rem;
-  color: var(--color-text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.sidebar-logout {
-  background: none;
-  border: none;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  padding: 0.375rem;
-  border-radius: 0.375rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: color 0.12s ease, background-color 0.12s ease;
-}
-
-.sidebar-logout:hover {
-  color: var(--color-danger);
-  background-color: rgba(250, 82, 82, 0.08);
 }
 
 .sidebar-enter-active { transition: opacity 0.2s ease; }
