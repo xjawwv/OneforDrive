@@ -138,6 +138,7 @@ if (import.meta.client) {
 @media (max-width: 480px) {
   .top-bar {
     padding: 0.5rem 0.75rem;
+    flex-wrap: wrap;
   }
 
   .page-title {
@@ -145,7 +146,7 @@ if (import.meta.client) {
   }
 
   .page-subtitle {
-    font-size: 10px;
+    display: none;
   }
 
   .avatar-circle {
