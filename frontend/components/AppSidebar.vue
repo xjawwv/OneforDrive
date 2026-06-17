@@ -47,8 +47,14 @@ import { HardDrive, FolderOpen, Settings, ShieldCheck, Users, Menu, X } from 'lu
 const props = defineProps<{ current: string }>()
 
 const sidebarOpen = inject<Ref<boolean>>('sidebarOpen', ref(false))
-const { can } = usePermissions()
+const { can, fetchPermissions } = usePermissions()
 const hasAdminAccess = computed(() => can('users.manage'))
+
+onMounted(() => {
+  if (import.meta.client && localStorage.getItem('token')) {
+    fetchPermissions()
+  }
+})
 </script>
 
 <style scoped>
