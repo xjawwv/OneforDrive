@@ -2,32 +2,46 @@
   <div class="app-layout">
     <AppSidebar current="users" />
     <div class="app-main">
-      <AppTopBar title="User Management" subtitle="View and manage user roles" current-page="settings" @hamburger-click="sidebarOpen = true" />
+      <AppTopBar title="User Management" subtitle="View and manage user roles" current-page="users" @hamburger-click="sidebarOpen = true" />
 
       <div v-if="loading" class="empty-state">
         <Loader2 :size="24" class="spin" style="color: var(--color-text-muted);" />
       </div>
 
-      <div v-else class="users-list">
-        <div v-for="user in users" :key="user.id" class="user-card">
-          <div class="user-avatar">
-            {{ user.name?.charAt(0)?.toUpperCase() || 'U' }}
-          </div>
-          <div class="user-info">
-            <div class="user-name">{{ user.name }}</div>
-            <div class="user-email">{{ user.email }}</div>
-            <div class="user-roles">
-              <span v-for="role in user.roles" :key="role.id" class="role-tag">{{ role.name }}</span>
-              <span v-if="!user.roles?.length" class="role-tag none">No role</span>
-            </div>
-          </div>
-          <div class="user-actions">
-            <select class="role-select" :value="user.roles?.[0]?.id || ''" @change="assignRole(user.id, $event)">
-              <option value="">No role</option>
-              <option v-for="role in allRoles" :key="role.id" :value="role.id">{{ role.name }}</option>
-            </select>
-          </div>
-        </div>
+      <div v-else class="table-card">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th class="col-id">ID</th>
+              <th class="col-name">Name</th>
+              <th class="col-email">Email</th>
+              <th class="col-role">Role</th>
+              <th class="col-actions">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="user in users" :key="user.id">
+              <td class="col-id">{{ user.id }}</td>
+              <td class="col-name">
+                <div class="user-cell">
+                  <div class="user-avatar-sm">{{ user.name?.charAt(0)?.toUpperCase() || 'U' }}</div>
+                  <span>{{ user.name }}</span>
+                </div>
+              </td>
+              <td class="col-email">{{ user.email }}</td>
+              <td class="col-role">
+                <span v-for="role in user.roles" :key="role.id" class="role-tag">{{ role.name }}</span>
+                <span v-if="!user.roles?.length" class="role-tag none">No role</span>
+              </td>
+              <td class="col-actions">
+                <select class="role-select" :value="user.roles?.[0]?.id || ''" @change="assignRole(user.id, $event)">
+                  <option value="">No role</option>
+                  <option v-for="role in allRoles" :key="role.id" :value="role.id">{{ role.name }}</option>
+                </select>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
@@ -115,76 +129,102 @@ onMounted(() => {
   padding: 5rem 1.5rem;
 }
 
-.users-list {
+.table-card {
+  background-color: var(--color-surface-0);
+  border: 1px solid var(--color-surface-2);
+  border-radius: 0.75rem;
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.data-table thead {
+  border-bottom: 1px solid var(--color-surface-2);
+}
+
+.data-table th {
+  text-align: left;
+  padding: 0.75rem 1rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.data-table td {
+  padding: 0.75rem 1rem;
+  color: var(--color-text-secondary);
+  border-bottom: 1px solid var(--color-surface-2);
+  vertical-align: middle;
+}
+
+.data-table tr:last-child td {
+  border-bottom: none;
+}
+
+.data-table tr:hover td {
+  background-color: var(--color-surface-1);
+}
+
+.col-id {
+  width: 60px;
+}
+
+.col-name {
+  min-width: 150px;
+}
+
+.col-email {
+  min-width: 200px;
+}
+
+.col-role {
+  min-width: 120px;
+}
+
+.col-actions {
+  width: 150px;
+}
+
+.user-cell {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 0.5rem;
 }
 
-.user-card {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.875rem 1rem;
-  background-color: var(--color-surface-0);
-  border: 1px solid var(--color-surface-2);
-  border-radius: 0.5rem;
-}
-
-.user-avatar {
-  width: 2.25rem;
-  height: 2.25rem;
+.user-avatar-sm {
+  width: 1.75rem;
+  height: 1.75rem;
   border-radius: 9999px;
   background-color: var(--color-brand-600);
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.875rem;
+  font-size: 0.6875rem;
   font-weight: 600;
   flex-shrink: 0;
 }
 
-.user-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.user-name {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--color-text-primary);
-}
-
-.user-email {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-  margin-top: 0.125rem;
-}
-
-.user-roles {
-  display: flex;
-  gap: 0.25rem;
-  margin-top: 0.25rem;
-  flex-wrap: wrap;
-}
-
 .role-tag {
+  display: inline-block;
   font-size: 0.625rem;
   font-weight: 600;
   color: var(--color-brand-600);
   background-color: var(--color-brand-50);
   padding: 0.125rem 0.375rem;
   border-radius: 0.25rem;
+  margin-right: 0.25rem;
 }
 
 .role-tag.none {
   color: var(--color-text-muted);
   background-color: var(--color-surface-2);
-}
-
-.user-actions {
-  flex-shrink: 0;
 }
 
 .role-select {
@@ -204,5 +244,11 @@ onMounted(() => {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+@media (max-width: 768px) {
+  .col-id, .col-email {
+    display: none;
+  }
 }
 </style>
