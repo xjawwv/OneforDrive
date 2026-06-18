@@ -90,6 +90,7 @@ const userInitial = computed(() => userName.value.charAt(0).toUpperCase())
 const logout = () => {
   localStorage.removeItem('token')
   localStorage.removeItem('user')
+  localStorage.removeItem('permissions')
   navigateTo('/login')
 }
 
