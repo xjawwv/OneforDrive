@@ -203,7 +203,7 @@ onUnmounted(() => {
 .header-divider {
   height: 1px;
   background-color: #E4E4E7;
-  margin: 0.75rem 0;
+  margin: 0.25rem 0;
 }
 
 @media (max-width: 768px) {
