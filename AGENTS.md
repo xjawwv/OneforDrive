@@ -18,16 +18,18 @@ backend/
   internal/service/google.go     Google Drive API integration (OAuth, token refresh, chunk routing)
   pkg/redis/                     Redis client init
 frontend/
-  pages/                         Each page owns its full layout (layout: false)
+  pages/                         Pages render only content via <slot />, layout handled by default.vue
     index.vue                    Root redirect (auth check)
-    login.vue                    Login/register
+    login.vue                    Login/register (layout: false)
     explorer.vue                 Main file manager (~2350 lines)
     settings.vue                 Drive account management
-    shared/[token].vue           Public share viewer
+    shared/[token].vue           Public share viewer (layout: false)
     admin/users.vue              User management
     admin/roles.vue              Role/permission management
-  components/                    AppTopBar, AppSidebar
-  composables/                   useApi (JWT fetch wrapper), usePermissions (RBAC state)
+    admin/routes.vue             Feature route management
+  components/                    AppTopBar, AppSidebar (owned by layout)
+  composables/                   useApi (JWT fetch wrapper), usePermissions (RBAC state), useFeatureRoute
+  layouts/default.vue            Owns AppSidebar + AppTopBar, provides sidebarOpen + topbar config
   assets/css/                    tokens.css (design tokens), main.css (Tailwind + globals)
 db.py                            Python CLI for DB admin (uses docker compose exec)
 ```
@@ -59,7 +61,7 @@ db.py                            Python CLI for DB admin (uses docker compose ex
 
 12. **Google Drive tokens refresh transparently** — `internal/service/google.go` checks `token_expiry` and refreshes before API calls. If you add new Drive API calls, always use the provided token-refreshing client, not raw tokens.
 
-13. **Every page owns its full layout** — all pages use `definePageMeta({ layout: false })` and import `AppSidebar` + `AppTopBar` directly. Do not use Nuxt's layout system.
+13. **Layout owns AppSidebar + AppTopBar** — `layouts/default.vue` renders both components and provides `sidebarOpen` + topbar config via provide/inject. Pages set their topbar state via `useState('topbar', {...})`. Only `login.vue`, `index.vue`, and `shared/[token].vue` use `layout: false`.
 
 14. **`explorer.vue` is the largest file (~2350 lines)** — contains the full file manager UI. When editing, be surgical. Prefer extracting logic into composables if adding significant new features.
 
@@ -71,8 +73,8 @@ db.py                            Python CLI for DB admin (uses docker compose ex
 - **Icons:** `lucide-vue-next` only — no emoji, no other icon libraries, ever
 - **Colors:** always `var(--color-*)` tokens — never hardcode hex in Vue files
 - **Theme:** toggled via `data-theme` attribute, defined in `tokens.css` with dark mode overrides in `[data-theme="dark"]`
-- **Layouts:** each page owns its full layout (`definePageMeta({ layout: false })`)
-- **Composables:** `useApi` for API calls (auto-injects JWT), `usePermissions` for RBAC checks
+- **Layouts:** `layouts/default.vue` owns AppSidebar + AppTopBar; pages set topbar via `useState('topbar')`
+- **Composables:** `useApi` for API calls (auto-injects JWT), `usePermissions` for RBAC checks, `useFeatureRoute` for route status
 - **CSS classes:** `.card`, `.btn-primary`, `.input-field` etc. defined in `main.css`
 
 ### Backend
