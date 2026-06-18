@@ -40,6 +40,7 @@
         </Transition>
       </div>
     </header>
+    <div class="header-divider"></div>
   </div>
 </template>
 
@@ -117,7 +118,9 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.625rem 0;
+  padding: 0.625rem 1rem;
+  background-color: var(--color-surface-0);
+  border-radius: 0.375rem;
   flex-wrap: nowrap;
 }
 
@@ -195,6 +198,18 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.header-divider {
+  height: 1px;
+  background-color: #E4E4E7;
+  margin: 0.75rem 0;
+}
+
+@media (max-width: 768px) {
+  .header-divider {
+    margin: 0.5rem 0;
+  }
 }
 
 .avatar-btn {
