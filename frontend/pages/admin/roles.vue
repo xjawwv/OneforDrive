@@ -1,8 +1,6 @@
 <template>
-  <div class="app-layout">
-    <AppSidebar current="roles" />
-    <div class="app-main">
-      <AppTopBar title="Role Management" subtitle="Manage roles and permissions" current-page="settings" @hamburger-click="sidebarOpen = true">
+  <div>
+      <AppTopBar title="Role Management" subtitle="Manage roles and permissions" current-page="settings">
         <template #actions>
           <button class="btn-primary" @click="showCreateModal = true">
             <Plus :size="16" />
@@ -17,7 +15,7 @@
       </div>
 
       <div v-else class="roles-grid">
-        <div v-for="role in roles" :key="role.id" class="role-card" @click="selectRole(role)">
+        <div v-for="role in roles" :key="role.id" class="role-card" :class="{ locked: role.is_system }" @click="selectRole(role)">
           <div class="role-icon">
             <ShieldCheck :size="20" />
           </div>
@@ -26,7 +24,8 @@
             <div class="role-desc">{{ role.description }}</div>
             <div v-if="role.is_system" class="role-badge">System</div>
           </div>
-          <ChevronRight :size="16" style="color: var(--color-text-muted);" />
+          <Lock v-if="role.is_system" :size="14" style="color: var(--color-text-muted);" />
+          <ChevronRight v-else :size="16" style="color: var(--color-text-muted);" />
         </div>
       </div>
 
@@ -41,10 +40,12 @@
               <div v-for="(perms, category) in groupedPermissions" :key="category" class="perm-group">
                 <div class="perm-category">{{ category }}</div>
                 <div v-for="perm in perms" :key="perm.id" class="perm-item">
-                  <label class="perm-label">
-                    <input type="checkbox" :checked="selectedPermIds.has(perm.id)" @change="togglePerm(perm.id)" />
-                    <span>{{ perm.description }}</span>
-                  </label>
+                  <div class="perm-row">
+                    <span class="perm-text">{{ perm.description }}</span>
+                    <button class="toggle" :class="{ active: selectedPermIds.has(perm.id) }" @click="togglePerm(perm.id)">
+                      <span class="toggle-knob"></span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -80,22 +81,16 @@
           </div>
         </div>
       </Transition>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { Plus, ShieldCheck, ChevronRight, X, Loader2 } from 'lucide-vue-next'
-
-definePageMeta({ layout: false })
+import { Plus, ShieldCheck, ChevronRight, X, Loader2, Lock } from 'lucide-vue-next'
 
 const { apiFetch } = useApi()
+const { can, fetchPermissions } = usePermissions()
 const route = useRoute()
 const router = useRouter()
-const sidebarOpen = ref(false)
-
-provide('sidebarOpen', sidebarOpen)
-
 const roles = ref<any[]>([])
 const permissions = ref<any[]>([])
 const loading = ref(true)
@@ -124,6 +119,7 @@ const loadData = async () => {
 }
 
 const selectRole = async (role: any) => {
+  if (role.is_system) return
   selectedRole.value = role
   try {
     const data = await apiFetch(`/api/rbac/roles/${role.id}/permissions`) as any
@@ -164,34 +160,17 @@ const createRole = async () => {
   } catch {}
 }
 
-onMounted(() => {
+onMounted(async () => {
   if (import.meta.client) {
     if (!localStorage.getItem('token')) { navigateTo('/login'); return }
   }
+  await fetchPermissions()
+  if (!can('nav.admin')) { navigateTo('/'); return }
   loadData()
 })
 </script>
 
 <style scoped>
-.app-layout {
-  display: flex;
-  min-height: 100vh;
-  background-color: var(--color-surface-1);
-}
-
-.app-main {
-  flex: 1;
-  margin-left: 240px;
-  padding: 2rem 2.5rem;
-}
-
-@media (max-width: 768px) {
-  .app-main {
-    margin-left: 0;
-    padding: 0.75rem;
-  }
-}
-
 .header-divider {
   height: 1px;
   background-color: #E4E4E7;
@@ -223,6 +202,15 @@ onMounted(() => {
 
 .role-card:hover {
   background-color: var(--color-surface-1);
+}
+
+.role-card.locked {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.role-card.locked:hover {
+  background-color: var(--color-surface-0);
 }
 
 .role-icon {
@@ -331,17 +319,47 @@ onMounted(() => {
   padding: 0.375rem 0;
 }
 
-.perm-label {
+.perm-row {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.8125rem;
-  color: var(--color-text-secondary);
-  cursor: pointer;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
-.perm-label input {
+.perm-text {
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary);
+}
+
+.toggle {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  background-color: var(--color-surface-3);
+  border: none;
+  border-radius: 9999px;
   cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 0.2s ease;
+}
+
+.toggle.active {
+  background-color: var(--color-brand-600);
+}
+
+.toggle-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background-color: white;
+  border-radius: 9999px;
+  transition: transform 0.2s ease;
+}
+
+.toggle.active .toggle-knob {
+  transform: translateX(16px);
 }
 
 .form-group {

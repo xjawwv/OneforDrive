@@ -1,16 +1,27 @@
 <template>
-  <div class="app-layout">
-    <AppSidebar current="settings" />
-    <div class="app-main">
-      <AppTopBar title="Drive Accounts" subtitle="Manage your connected Google Drive accounts" current-page="settings" @hamburger-click="sidebarOpen = true">
+  <div>
+      <AppTopBar title="Drive Accounts" subtitle="Manage your connected Google Drive accounts" current-page="settings">
         <template #actions>
-          <button class="btn-primary" @click="connectAccount">
+          <button v-if="routeEnabled" class="btn-primary" @click="connectAccount">
             <Plus :size="16" />
             <span>Connect Drive</span>
           </button>
         </template>
       </AppTopBar>
 
+      <div v-if="routeLoading" class="empty-state">
+        <Loader2 :size="24" class="spin" style="color: var(--color-text-muted);" />
+      </div>
+
+      <div v-else-if="!routeEnabled" class="maintenance-state">
+        <div class="maintenance-icon">
+          <AlertTriangle :size="48" />
+        </div>
+        <h2>Feature Under Maintenance</h2>
+        <p>{{ routeDesc || 'This feature is temporarily unavailable. Please check back later.' }}</p>
+      </div>
+
+      <div v-else class="settings-content">
       <div class="card" style="margin-bottom: 1.5rem;">
         <h2 class="section-title">Storage Overview</h2>
         <div class="stats-grid">
@@ -72,25 +83,20 @@
           </div>
         </div>
       </div>
-    </div>
+      </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { Plus, Trash2, RefreshCw, ShieldCheck, Users } from 'lucide-vue-next'
-
-definePageMeta({ layout: false })
+import { Plus, Trash2, RefreshCw, ShieldCheck, Users, Loader2, AlertTriangle } from 'lucide-vue-next'
 
 const { apiFetch } = useApi()
 const { can, fetchPermissions } = usePermissions()
+const { enabled: routeEnabled, loading: routeLoading, description: routeDesc, checkRoute: checkFeatureRoute } = useFeatureRoute('/settings')
 
 const accounts = ref<any[]>([])
 const loading = ref(true)
 const stats = ref({ total_files: 0, total_size_bytes: 0, total_drive_accounts: 0, active_drive_accounts: 0, total_capacity_bytes: 0, total_used_bytes: 0 })
-const sidebarOpen = ref(false)
-
-provide('sidebarOpen', sidebarOpen)
-
 const formatSize = (bytes: number) => {
   if (!bytes) return '0 B'
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
@@ -141,34 +147,64 @@ const syncAccount = async (id: number) => {
   account._syncing = false
 }
 
-onMounted(() => {
+onMounted(async () => {
   if (import.meta.client) {
     if (!localStorage.getItem('token')) { navigateTo('/login'); return }
   }
+  await fetchPermissions()
+  if (!can('nav.settings')) { navigateTo('/'); return }
+  await checkFeatureRoute()
+  if (!routeEnabled.value) return
   loadAccounts()
   loadStats()
-  fetchPermissions()
 })
 </script>
 
 <style scoped>
-.app-layout {
+.empty-state {
   display: flex;
-  min-height: 100vh;
-  background-color: var(--color-surface-1);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 5rem 1.5rem;
 }
 
-.app-main {
-  flex: 1;
-  margin-left: 240px;
-  padding: 2rem 2.5rem;
+.maintenance-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 5rem 1.5rem;
 }
 
-@media (max-width: 768px) {
-  .app-main {
-    margin-left: 0;
-    padding: 0.75rem;
-  }
+.maintenance-state .maintenance-icon {
+  color: var(--color-text-muted);
+  margin-bottom: 1rem;
+}
+
+.maintenance-state h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0 0 0.5rem 0;
+}
+
+.maintenance-state p {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  margin: 0;
+  max-width: 400px;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .section-title {

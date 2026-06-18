@@ -1,22 +1,11 @@
 export const usePermissions = () => {
-  const permissions = useState<string[]>('permissions', () => {
-    if (import.meta.client) {
-      try {
-        const stored = localStorage.getItem('permissions')
-        return stored ? JSON.parse(stored) : []
-      } catch { return [] }
-    }
-    return []
-  })
+  const permissions = useState<string[]>('permissions', () => [])
 
   const fetchPermissions = async () => {
     const { apiFetch } = useApi()
     try {
       const data = await apiFetch('/api/rbac/me/permissions') as any
       permissions.value = data.permissions || []
-      if (import.meta.client) {
-        localStorage.setItem('permissions', JSON.stringify(permissions.value))
-      }
     } catch {}
   }
 

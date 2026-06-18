@@ -1,7 +1,7 @@
 <template>
   <div>
     <header class="top-bar">
-      <button v-if="showHamburger" class="hamburger-btn" @click="$emit('hamburger-click')">
+      <button v-if="showHamburger" class="hamburger-btn" @click="sidebarOpen = true">
         <Menu :size="20" />
       </button>
       <div class="top-bar-title">
@@ -59,11 +59,8 @@ const props = withDefaults(defineProps<{
   currentPage: ''
 })
 
-defineEmits<{
-  'hamburger-click': []
-}>()
-
 const showUserMenu = ref(false)
+const sidebarOpen = inject<Ref<boolean>>('sidebarOpen', ref(false))
 
 const userName = computed(() => {
   if (import.meta.client) {

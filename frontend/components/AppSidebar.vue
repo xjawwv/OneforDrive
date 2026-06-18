@@ -11,68 +11,97 @@
       </div>
 
       <nav class="sidebar-nav">
-        <div class="nav-section">
-          <div class="nav-label">FILES</div>
-          <NuxtLink to="/explorer" class="sidebar-link" :class="{ active: current === 'explorer' }" @click="sidebarOpen = false">
-            <FolderOpen :size="18" />
-            <span>Explorer</span>
-          </NuxtLink>
-        </div>
-        <div class="nav-section">
-          <div class="nav-label">ACCOUNT</div>
-          <NuxtLink to="/settings" class="sidebar-link" :class="{ active: current === 'settings' }" @click="sidebarOpen = false">
-            <Settings :size="18" />
-            <span>Settings</span>
-          </NuxtLink>
-        </div>
-        <div v-if="hasAdminAccess" class="nav-section">
-          <div class="nav-label">ADMIN</div>
-          <NuxtLink to="/admin/roles" class="sidebar-link" :class="{ active: current === 'roles' }" @click="sidebarOpen = false">
-            <ShieldCheck :size="18" />
-            <span>Role Management</span>
-          </NuxtLink>
-          <NuxtLink to="/admin/users" class="sidebar-link" :class="{ active: current === 'users' }" @click="sidebarOpen = false">
-            <Users :size="18" />
-            <span>User Management</span>
-          </NuxtLink>
-        </div>
+        <template v-for="(group, category) in groupedRoutes" :key="category">
+          <div v-if="canViewCategory(category)" class="nav-section">
+            <div class="nav-label">{{ category }}</div>
+            <template v-for="r in group" :key="r.id">
+              <NuxtLink
+                v-if="canViewRoute(r)"
+                :to="r.enabled ? r.path : '#'"
+                class="sidebar-link"
+                :class="{ active: route.path === r.path, disabled: !r.enabled }"
+                @click="handleClick(r)"
+              >
+                <component :is="getIcon(r.icon)" :size="18" />
+                <span>{{ r.name }}</span>
+                <Wrench v-if="!r.enabled" :size="12" class="maintenance-icon" />
+              </NuxtLink>
+            </template>
+          </div>
+        </template>
       </nav>
     </aside>
   </div>
 </template>
 
 <script setup lang="ts">
-import { HardDrive, FolderOpen, Settings, ShieldCheck, Users, Menu, X } from 'lucide-vue-next'
+import { HardDrive, FolderOpen, Settings, ShieldCheck, Users, X, Wrench, Circle, Map } from 'lucide-vue-next'
 
-const props = defineProps<{ current: string }>()
+const props = defineProps<{ current?: string }>()
 
+const { apiFetch } = useApi()
 const sidebarOpen = inject<Ref<boolean>>('sidebarOpen', ref(false))
 const { can, fetchPermissions } = usePermissions()
-const hasAdminAccess = computed(() => can('users.manage'))
+const route = useRoute()
+
+const featureRoutes = ref<any[]>([])
+
+const iconMap: Record<string, any> = {
+  FolderOpen,
+  Settings,
+  ShieldCheck,
+  Users,
+  Circle,
+  Map,
+}
+
+const getIcon = (name: string) => iconMap[name] || Circle
+
+const groupedRoutes = computed(() => {
+  const groups: Record<string, any[]> = {}
+  for (const r of featureRoutes.value) {
+    if (!groups[r.category]) groups[r.category] = []
+    groups[r.category].push(r)
+  }
+  return groups
+})
+
+const canViewCategory = (category: string) => {
+  if (category === 'admin') return can('nav.admin')
+  if (category === 'files') return can('nav.explorer')
+  if (category === 'account') return can('nav.settings')
+  return true
+}
+
+const canViewRoute = (r: any) => {
+  if (r.path === '/explorer') return can('nav.explorer')
+  if (r.path === '/settings') return can('nav.settings')
+  if (r.path === '/admin/roles') return can('nav.admin')
+  if (r.path === '/admin/users') return can('nav.admin')
+  if (r.path === '/admin/routes') return can('nav.route_management')
+  return true
+}
+
+const handleClick = (r: any) => {
+  if (!r.enabled) return
+  sidebarOpen.value = false
+}
+
+const loadRoutes = async () => {
+  try {
+    featureRoutes.value = (await apiFetch('/api/routes')) as any[]
+  } catch {}
+}
 
 onMounted(() => {
   if (import.meta.client && localStorage.getItem('token')) {
     fetchPermissions()
   }
+  loadRoutes()
 })
 </script>
 
 <style scoped>
-.mobile-menu-btn {
-  display: none;
-  position: fixed;
-  top: 1rem;
-  left: 1rem;
-  z-index: 30;
-  background-color: var(--color-surface-0);
-  border: 1px solid var(--color-surface-3);
-  border-radius: 0.5rem;
-  padding: 0.5rem;
-  cursor: pointer;
-  color: var(--color-text-secondary);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
 .sidebar {
   width: 240px;
   height: 100vh;
@@ -198,10 +227,18 @@ onMounted(() => {
   color: var(--color-brand-700);
 }
 
-.sidebar-enter-active { transition: opacity 0.2s ease; }
-.sidebar-leave-active { transition: opacity 0.15s ease; }
-.sidebar-enter-from, .sidebar-leave-to { opacity: 0; }
-.sidebar-slide-enter-active { transition: transform 0.25s ease; }
-.sidebar-slide-leave-active { transition: transform 0.2s ease; }
-.sidebar-slide-enter-from, .sidebar-slide-leave-to { transform: translateX(-100%); }
+.sidebar-link.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sidebar-link.disabled:hover {
+  background-color: transparent;
+  color: var(--color-text-secondary);
+}
+
+.maintenance-icon {
+  color: var(--color-warning, #f59e0b);
+  margin-left: auto;
+}
 </style>

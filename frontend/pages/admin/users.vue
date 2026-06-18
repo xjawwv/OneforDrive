@@ -1,8 +1,6 @@
 <template>
-  <div class="app-layout">
-    <AppSidebar current="users" />
-    <div class="app-main">
-      <AppTopBar title="User Management" subtitle="View and manage user roles" current-page="users" @hamburger-click="sidebarOpen = true" />
+  <div>
+      <AppTopBar title="User Management" subtitle="View and manage user roles" current-page="users" />
 
       <div v-if="loading" class="empty-state">
         <Loader2 :size="24" class="spin" style="color: var(--color-text-muted);" />
@@ -30,11 +28,11 @@
               </td>
               <td class="col-email">{{ user.email }}</td>
               <td class="col-role">
-                <span v-for="role in user.roles" :key="role.id" class="role-tag">{{ role.name }}</span>
-                <span v-if="!user.roles?.length" class="role-tag none">No role</span>
+                <span v-if="user.roles?.length" class="role-tag">{{ user.roles[0].name }}</span>
+                <span v-else class="role-tag none">No role</span>
               </td>
               <td class="col-actions">
-                <select class="role-select" :value="user.roles?.[0]?.id || ''" @change="assignRole(user.id, $event)">
+                <select class="role-select" :value="user.roles?.[0]?.id || ''" @change="assignRole(user.id, Number($event.target.value))">
                   <option value="">No role</option>
                   <option v-for="role in allRoles" :key="role.id" :value="role.id">{{ role.name }}</option>
                 </select>
@@ -43,20 +41,14 @@
           </tbody>
         </table>
       </div>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { Loader2 } from 'lucide-vue-next'
 
-definePageMeta({ layout: false })
-
 const { apiFetch } = useApi()
-const sidebarOpen = ref(false)
-
-provide('sidebarOpen', sidebarOpen)
-
+const { can, fetchPermissions } = usePermissions()
 const users = ref<any[]>([])
 const allRoles = ref<any[]>([])
 const loading = ref(true)
@@ -64,7 +56,7 @@ const loading = ref(true)
 const loadUsers = async () => {
   loading.value = true
   try {
-    const data = await apiFetch('/api/accounts') as any[]
+    const data = await apiFetch('/api/rbac/users') as any[]
     for (const user of data) {
       try {
         const roles = await apiFetch(`/api/rbac/users/${user.id}/roles`) as any[]
@@ -79,51 +71,31 @@ const loadUsers = async () => {
   loading.value = false
 }
 
-const assignRole = async (userId: number, roleId: string) => {
+const assignRole = async (userId: number, roleId: number) => {
   try {
-    if (roleId) {
-      await apiFetch(`/api/rbac/users/${userId}/roles`, {
-        method: 'POST',
-        body: { role_id: Number(roleId) }
-      })
-    } else {
-      const user = users.value.find((u: any) => u.id === userId)
-      if (user?.roles?.[0]?.id) {
-        await apiFetch(`/api/rbac/users/${userId}/roles/${user.roles[0].id}`, { method: 'DELETE' })
-      }
+    const user = users.value.find((u: any) => u.id === userId)
+    if (user?.roles?.[0]?.id) {
+      await apiFetch(`/api/rbac/users/${userId}/roles/${user.roles[0].id}`, { method: 'DELETE' })
     }
+    await apiFetch(`/api/rbac/users/${userId}/roles`, {
+      method: 'POST',
+      body: { role_id: roleId }
+    })
     await loadUsers()
   } catch {}
 }
 
-onMounted(() => {
+onMounted(async () => {
   if (import.meta.client) {
     if (!localStorage.getItem('token')) { navigateTo('/login'); return }
   }
+  await fetchPermissions()
+  if (!can('nav.admin')) { navigateTo('/'); return }
   loadUsers()
 })
 </script>
 
 <style scoped>
-.app-layout {
-  display: flex;
-  min-height: 100vh;
-  background-color: var(--color-surface-1);
-}
-
-.app-main {
-  flex: 1;
-  margin-left: 240px;
-  padding: 2rem 2.5rem;
-}
-
-@media (max-width: 768px) {
-  .app-main {
-    margin-left: 0;
-    padding: 0.75rem;
-  }
-}
-
 .empty-state {
   text-align: center;
   padding: 5rem 1.5rem;
@@ -201,7 +173,7 @@ onMounted(() => {
   width: 1.75rem;
   height: 1.75rem;
   border-radius: 9999px;
-  background-color: var(--color-brand-600);
+  background-color: #F43F5E;
   color: white;
   display: flex;
   align-items: center;

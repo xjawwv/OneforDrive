@@ -30,7 +30,6 @@ try:
     from rich.console import Console
     from rich.table import Table
     from rich.panel import Panel
-    from rich.prompt import Confirm
 except ImportError:
     print("This tool needs the 'rich' package for colors and tables.")
     print("Install it with:  pip install rich")
@@ -42,7 +41,57 @@ DB_USER = os.environ.get("DB_USER", "rsuser")
 DB_PASS = os.environ.get("DB_PASSWORD", "rspass")
 DB_NAME = os.environ.get("DB_NAME", "routestorage")
 
+REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
+REDIS_PORT = os.environ.get("REDIS_PORT", "6379")
+
 console = Console()
+
+
+# ---------------------------------------------------------------------------
+# Keyboard input
+# ---------------------------------------------------------------------------
+
+def read_key():
+    """Read a single keypress and return a normalized action string."""
+    if sys.platform == "win32":
+        import msvcrt
+        key = msvcrt.getwch()
+        if key in ('\x00', '\xe0'):
+            key2 = msvcrt.getwch()
+            return {"H": "up", "P": "down", "K": "left", "M": "right"}.get(key2, "")
+        if key in ('\r', '\n'):
+            return "enter"
+        if key == ' ':
+            return "space"
+        if key == '\x1b':
+            return "escape"
+        if key == '\x03':
+            return "ctrl_c"
+        return key
+    else:
+        import tty, termios
+        fd = sys.stdin.fileno()
+        old = termios.tcgetattr(fd)
+        try:
+            tty.setraw(fd)
+            ch = sys.stdin.read(1)
+            if ch == '\x1b':
+                ch2 = sys.stdin.read(1)
+                if ch2 == '[':
+                    ch3 = sys.stdin.read(1)
+                    return {"A": "up", "B": "down", "C": "right", "D": "left"}.get(ch3, "")
+                return "escape"
+            if ch in ('\r', '\n', ' '):
+                return "enter"
+            if ch == '\x03':
+                return "ctrl_c"
+            return ch
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old)
+
+
+def clear_screen():
+    os.system('cls' if sys.platform == 'win32' else 'clear')
 
 
 # ---------------------------------------------------------------------------
@@ -50,7 +99,6 @@ console = Console()
 # ---------------------------------------------------------------------------
 
 def run_sql(sql):
-    """Run SQL and return raw stdout. Errors are printed in red."""
     result = subprocess.run(
         ["docker", "compose", "exec", "-T", "mysql", "mysql",
          f"-u{DB_USER}", f"-p{DB_PASS}", DB_NAME, "-e", sql],
@@ -62,7 +110,6 @@ def run_sql(sql):
 
 
 def query_table(sql):
-    """Run SQL and parse tab-separated output into a list of dicts."""
     result = subprocess.run(
         ["docker", "compose", "exec", "-T", "mysql", "mysql",
          f"-u{DB_USER}", f"-p{DB_PASS}", DB_NAME, "-e", sql],
@@ -84,16 +131,21 @@ def query_table(sql):
 
 
 def escape_sql(value):
-    """Minimal escaping for string values interpolated into SQL."""
     return value.replace("\\", "\\\\").replace("'", "\\'")
 
 
-def clear_screen():
-    console.clear()
+def invalidate_user_permissions(user_id):
+    result = subprocess.run(
+        ["docker", "compose", "exec", "-T", "redis", "redis-cli",
+         "-h", REDIS_HOST, "-p", REDIS_PORT,
+         "DEL", f"user_permissions:{user_id}"],
+        capture_output=True, text=True, cwd=os.path.dirname(os.path.abspath(__file__))
+    )
+    if result.returncode == 0 and result.stdout.strip() == "1":
+        console.print(f"[dim]Cleared permission cache for user {user_id}[/dim]")
 
 
 def print_table(title, rows, color="cyan"):
-    """Render a list of dicts as a rich table. Shows a friendly message if empty."""
     if not rows:
         console.print(f"[yellow]No data found.[/yellow]")
         return
@@ -117,23 +169,117 @@ def print_table(title, rows, color="cyan"):
     console.print(table)
 
 
-def select_index(count, message="Select a number"):
-    """Prompt for a 1-based index into a list of length `count`."""
-    raw = console.input(f"\n[bold yellow]{message}:[/bold yellow] ").strip()
-    if raw == "" or raw.lower() in ("q", "cancel", "back"):
-        return None
-    if not raw.isdigit():
-        console.print("[red]Invalid input.[/red]")
-        return None
-    idx = int(raw)
-    if not (1 <= idx <= count):
-        console.print("[red]Number out of range.[/red]")
-        return None
-    return idx - 1
+# ---------------------------------------------------------------------------
+# Interactive pickers — arrow keys + enter
+# ---------------------------------------------------------------------------
+
+def render_pick_list(title, items, selected, multi=None):
+    """Render a list of items with a cursor. `multi` is a set of selected indices for multi-select."""
+    clear_screen()
+    if title:
+        console.print(Panel.fit(f"[bold white]{title}[/bold white]", border_style="cyan"))
+    for i, item in enumerate(items):
+        cursor = " > " if i == selected else "   "
+        if multi is not None:
+            checkbox = "[green][x][/green]" if i in multi else "[dim][ ][/dim]"
+            console.print(f"{cursor}{checkbox} {item}")
+        else:
+            console.print(f"{cursor}{item}")
+    if multi is not None:
+        console.print(f"\n[dim]Arrow keys: navigate   Space: toggle   Enter: confirm   Esc: cancel[/dim]")
+    else:
+        console.print(f"\n[dim]Arrow keys: navigate   Enter: select   Esc: cancel[/dim]")
+
+
+def pick_one(title, items, hint="Select"):
+    """Arrow-key single selection. Returns index or None."""
+    selected = 0
+    while True:
+        render_pick_list(title, items, selected)
+        key = read_key()
+        if key == "up":
+            selected = (selected - 1) % len(items)
+        elif key == "down":
+            selected = (selected + 1) % len(items)
+        elif key == "enter":
+            return selected
+        elif key == "escape":
+            return None
+        elif key == "ctrl_c":
+            return None
+        elif key.isdigit() and key != "0":
+            idx = int(key) - 1
+            if 0 <= idx < len(items):
+                return idx
+    return None
+
+
+def pick_multi(title, items, initial=None):
+    """Arrow-key multi-select with space to toggle. Returns set of selected indices or None."""
+    selected = 0
+    chosen = set(initial) if initial else set()
+    while True:
+        render_pick_list(title, items, selected, multi=chosen)
+        key = read_key()
+        if key == "up":
+            selected = (selected - 1) % len(items)
+        elif key == "down":
+            selected = (selected + 1) % len(items)
+        elif key == "enter":
+            return chosen
+        elif key == "escape":
+            return None
+        elif key == "ctrl_c":
+            return None
+        elif key == "space":
+            if selected in chosen:
+                chosen.discard(selected)
+            else:
+                chosen.add(selected)
+        elif key.isdigit() and key != "0":
+            idx = int(key) - 1
+            if 0 <= idx < len(items):
+                if idx in chosen:
+                    chosen.discard(idx)
+                else:
+                    chosen.add(idx)
+    return None
+
+
+def confirm_choice(message, default=False):
+    """Arrow-key Yes/No prompt. Returns bool."""
+    options = ["No", "Yes"]
+    selected = 1 if default else 0
+    clear_screen()
+    console.print(Panel.fit(f"[bold red]{message}[/bold red]", border_style="red"))
+    while True:
+        for i, label in enumerate(options):
+            cursor = " > " if i == selected else "   "
+            if i == selected:
+                style = "bold green" if label == "Yes" else "bold red"
+                console.print(f"{cursor}[{style}]{label}[/{style}]")
+            else:
+                console.print(f"{cursor}[dim]{label}[/dim]")
+        console.print(f"\n[dim]Arrow keys: navigate   Enter: confirm[/dim]")
+        key = read_key()
+        if key == "up" or key == "left":
+            selected = (selected - 1) % len(options)
+            clear_screen()
+            console.print(Panel.fit(f"[bold red]{message}[/bold red]", border_style="red"))
+        elif key == "down" or key == "right":
+            selected = (selected + 1) % len(options)
+            clear_screen()
+            console.print(Panel.fit(f"[bold red]{message}[/bold red]", border_style="red"))
+        elif key == "enter":
+            return selected == 1
+        elif key == "escape":
+            return False
+        elif key == "ctrl_c":
+            return False
 
 
 # ---------------------------------------------------------------------------
-# Plain commands — now rendered as rich tables
+# Plain commands
 # ---------------------------------------------------------------------------
 
 def cmd_status():
@@ -213,6 +359,9 @@ def cmd_set_perm(args):
     for pid in perm_ids:
         sql += f"INSERT INTO role_permissions (role_id, permission_id) VALUES ({role_id}, {pid}); "
     run_sql(sql)
+    rows = query_table(f"SELECT user_id FROM user_roles WHERE role_id = {role_id};")
+    for row in rows:
+        invalidate_user_permissions(row["user_id"])
     console.print(f"[bold green]Permissions set for role {role_id}.[/bold green]")
 
 
@@ -222,6 +371,7 @@ def cmd_assign_role(args):
         return
     user_id, role_id = args[0], args[1]
     run_sql(f"INSERT IGNORE INTO user_roles (user_id, role_id) VALUES ({user_id}, {role_id});")
+    invalidate_user_permissions(user_id)
     console.print(f"[bold green]Role {role_id} assigned to user {user_id}.[/bold green]")
 
 
@@ -231,12 +381,12 @@ def cmd_remove_role(args):
         return
     user_id, role_id = args[0], args[1]
     run_sql(f"DELETE FROM user_roles WHERE user_id = {user_id} AND role_id = {role_id};")
+    invalidate_user_permissions(user_id)
     console.print(f"[bold green]Role {role_id} removed from user {user_id}.[/bold green]")
 
 
 def cmd_reset():
-    confirmed = Confirm.ask("[bold red]This will DROP ALL TABLES. Continue?[/bold red]", default=False)
-    if not confirmed:
+    if not confirm_choice("This will DROP ALL TABLES. Continue?"):
         console.print("[yellow]Aborted.[/yellow]")
         return
     console.print("[red]Dropping tables...[/red]")
@@ -246,7 +396,7 @@ def cmd_reset():
 
 
 # ---------------------------------------------------------------------------
-# Interactive wrappers — numbered selection instead of raw IDs
+# Interactive wrappers
 # ---------------------------------------------------------------------------
 
 def interactive_add_role():
@@ -264,8 +414,8 @@ def interactive_set_perm():
     if not roles:
         console.print("[yellow]No roles found.[/yellow]")
         return
-    print_table("Step 1 — Choose a Role", roles, color="cyan")
-    idx = select_index(len(roles), "Select a role")
+    role_labels = [f"{r['name']} (id: {r['id']})" for r in roles]
+    idx = pick_one(f"Step 1 — Choose a Role", role_labels)
     if idx is None:
         return
     role = roles[idx]
@@ -274,17 +424,22 @@ def interactive_set_perm():
     if not perms:
         console.print("[yellow]No permissions found.[/yellow]")
         return
-    print_table(f"Step 2 — Permissions for '{role['name']}'", perms, color="magenta")
-    raw = console.input("\n[bold yellow]Permission numbers, comma-separated (e.g. 1,3,4):[/bold yellow] ").strip()
-    indices = []
-    for part in raw.split(","):
-        part = part.strip()
-        if part.isdigit() and 1 <= int(part) <= len(perms):
-            indices.append(int(part) - 1)
-    if not indices:
-        console.print("[red]No valid permissions selected. Aborted.[/red]")
+
+    current_ids = query_table(f"SELECT permission_id FROM role_permissions WHERE role_id = {role['id']};")
+    current_set = {i for row in current_ids for i in [int(row["permission_id"])]}
+
+    perm_map = {p["id"]: p for p in perms}
+    perm_ids_ordered = [p["id"] for p in perms]
+    perm_labels = [f"[{p['category']}] {p['key']}" for p in perms]
+    initial = [perm_ids_ordered.index(pid) for pid in current_set if pid in perm_ids_ordered]
+
+    chosen_indices = pick_multi(f"Step 2 — Permissions for '{role['name']}'", perm_labels, initial)
+    if chosen_indices is None:
         return
-    perm_ids = [perms[i]["id"] for i in indices]
+    if not chosen_indices:
+        console.print("[yellow]No permissions selected. Aborted.[/yellow]")
+        return
+    perm_ids = [perm_ids_ordered[i] for i in chosen_indices]
     cmd_set_perm([role["id"]] + perm_ids)
 
 
@@ -293,8 +448,8 @@ def interactive_assign_role():
     if not users:
         console.print("[yellow]No users found.[/yellow]")
         return
-    print_table("Step 1 — Choose a User", users, color="cyan")
-    uidx = select_index(len(users), "Select a user")
+    user_labels = [f"{u['email']} (id: {u['id']})" for u in users]
+    uidx = pick_one("Step 1 — Choose a User", user_labels)
     if uidx is None:
         return
     user = users[uidx]
@@ -303,8 +458,8 @@ def interactive_assign_role():
     if not roles:
         console.print("[yellow]No roles found.[/yellow]")
         return
-    print_table(f"Step 2 — Choose a Role for '{user['email']}'", roles, color="magenta")
-    ridx = select_index(len(roles), "Select a role")
+    role_labels = [f"{r['name']} (id: {r['id']})" for r in roles]
+    ridx = pick_one(f"Step 2 — Choose a Role for '{user['email']}'", role_labels)
     if ridx is None:
         return
     role = roles[ridx]
@@ -323,9 +478,8 @@ def interactive_remove_role():
     if not assignments:
         console.print("[yellow]No role assignments found.[/yellow]")
         return
-    display_rows = [{"email": a["email"], "role": a["role_name"]} for a in assignments]
-    print_table("Current Assignments", display_rows, color="magenta")
-    idx = select_index(len(assignments), "Select an assignment to remove")
+    labels = [f"{a['email']} -> {a['role_name']}" for a in assignments]
+    idx = pick_one("Select an assignment to remove", labels)
     if idx is None:
         return
     a = assignments[idx]
@@ -351,36 +505,51 @@ MENU_ITEMS = [
 ]
 
 
-def print_menu():
-    console.print(Panel.fit(
-        f"[bold white]RouteStorage DB CLI[/bold white]\n[dim]{DB_NAME}@{DB_HOST}:{DB_PORT}[/dim]",
-        border_style="cyan",
-    ))
-    for i, (label, _) in enumerate(MENU_ITEMS, 1):
-        console.print(f"  [bold cyan]{i:>2}.[/bold cyan] {label}")
-    console.print(f"  [bold red] 0.[/bold red] Exit")
-
-
 def main_menu():
+    selected = 0
     while True:
         clear_screen()
-        print_menu()
-        choice = console.input("\n[bold yellow]Select an option:[/bold yellow] ").strip()
+        console.print(Panel.fit(
+            f"[bold white]RouteStorage DB CLI[/bold white]\n[dim]{DB_NAME}@{DB_HOST}:{DB_PORT}[/dim]",
+            border_style="cyan",
+        ))
+        for i, (label, _) in enumerate(MENU_ITEMS):
+            cursor = " > " if i == selected else "   "
+            if i == selected:
+                console.print(f"{cursor}[bold white]{label}[/bold white]")
+            else:
+                console.print(f"{cursor}[dim]{label}[/dim]")
+        console.print(f"\n[dim]Arrow keys: navigate   Enter/Space: select   q/Esc: quit[/dim]")
 
-        if choice in ("0", "q", "quit", "exit"):
+        key = read_key()
+        if key in ("quit", "escape", "ctrl_c"):
             console.print("[dim]Bye.[/dim]")
             break
-        if not choice.isdigit() or not (1 <= int(choice) <= len(MENU_ITEMS)):
-            continue
-
-        label, func = MENU_ITEMS[int(choice) - 1]
-        clear_screen()
-        console.print(Panel.fit(f"[bold white]{label}[/bold white]", border_style="green"))
-        try:
-            func()
-        except Exception as e:
-            console.print(f"[bold red]Error:[/bold red] {e}")
-        console.input("\n[dim italic]Press Enter to continue...[/dim italic]")
+        elif key == "up":
+            selected = (selected - 1) % len(MENU_ITEMS)
+        elif key == "down":
+            selected = (selected + 1) % len(MENU_ITEMS)
+        elif key in ("enter", "space"):
+            label, func = MENU_ITEMS[selected]
+            clear_screen()
+            console.print(Panel.fit(f"[bold white]{label}[/bold white]", border_style="green"))
+            try:
+                func()
+            except Exception as e:
+                console.print(f"[bold red]Error:[/bold red] {e}")
+            console.input("\n[dim italic]Press Enter to continue...[/dim italic]")
+        elif key.isdigit() and key != "0":
+            idx = int(key) - 1
+            if 0 <= idx < len(MENU_ITEMS):
+                selected = idx
+                label, func = MENU_ITEMS[selected]
+                clear_screen()
+                console.print(Panel.fit(f"[bold white]{label}[/bold white]", border_style="green"))
+                try:
+                    func()
+                except Exception as e:
+                    console.print(f"[bold red]Error:[/bold red] {e}")
+                console.input("\n[dim italic]Press Enter to continue...[/dim italic]")
 
 
 # ---------------------------------------------------------------------------

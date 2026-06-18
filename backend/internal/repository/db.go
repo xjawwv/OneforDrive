@@ -131,6 +131,18 @@ func createTables() {
 			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
 			FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
 		)`,
+		`CREATE TABLE IF NOT EXISTS feature_routes (
+			id BIGINT AUTO_INCREMENT PRIMARY KEY,
+			name VARCHAR(100) NOT NULL,
+			path VARCHAR(255) UNIQUE NOT NULL,
+			icon VARCHAR(100) NOT NULL DEFAULT 'Circle',
+			enabled BOOLEAN DEFAULT TRUE,
+			description TEXT,
+			category VARCHAR(100) NOT NULL DEFAULT 'general',
+			display_order INT DEFAULT 0,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+		)`,
 	}
 
 	for _, q := range queries {
@@ -144,6 +156,7 @@ func createTables() {
 	DB.Exec("ALTER TABLE drive_accounts ADD COLUMN route_storage_folder_id VARCHAR(255) NULL AFTER capacity_used")
 
 	seedRBAC()
+	seedFeatureRoutes()
 }
 
 func getEnv(key, fallback string) string {
@@ -167,10 +180,37 @@ func seedRBAC() {
 	DB.Exec("INSERT IGNORE INTO permissions (`key`, description, category) VALUES ('files.delete_all', 'Delete any user file', 'files')")
 	DB.Exec("INSERT IGNORE INTO permissions (`key`, description, category) VALUES ('files.view_all', 'View all users files', 'files')")
 	DB.Exec("INSERT IGNORE INTO permissions (`key`, description, category) VALUES ('storage.view_stats', 'View system-wide storage stats', 'storage')")
+	DB.Exec("INSERT IGNORE INTO permissions (`key`, description, category) VALUES ('nav.explorer', 'Access Explorer page', 'navigation')")
+	DB.Exec("INSERT IGNORE INTO permissions (`key`, description, category) VALUES ('nav.settings', 'Access Settings page', 'navigation')")
+	DB.Exec("INSERT IGNORE INTO permissions (`key`, description, category) VALUES ('nav.admin', 'Access Admin section', 'navigation')")
+	DB.Exec("INSERT IGNORE INTO permissions (`key`, description, category) VALUES ('nav.route_management', 'Access Route Management', 'navigation')")
 
 	DB.Exec("INSERT IGNORE INTO role_permissions (role_id, permission_id) SELECT (SELECT id FROM roles WHERE name = 'owner'), id FROM permissions")
-	DB.Exec("INSERT IGNORE INTO role_permissions (role_id, permission_id) SELECT (SELECT id FROM roles WHERE name = 'admin'), id FROM permissions")
-	DB.Exec("INSERT IGNORE INTO role_permissions (role_id, permission_id) SELECT (SELECT id FROM roles WHERE name = 'member'), id FROM permissions WHERE `key` IN ('drive_accounts.manage_own', 'files.upload', 'files.delete_own')")
+	DB.Exec("INSERT IGNORE INTO role_permissions (role_id, permission_id) SELECT (SELECT id FROM roles WHERE name = 'admin'), id FROM permissions WHERE `key` NOT IN ('nav.admin')")
+	DB.Exec("INSERT IGNORE INTO role_permissions (role_id, permission_id) SELECT (SELECT id FROM roles WHERE name = 'member'), id FROM permissions WHERE `key` IN ('drive_accounts.manage_own', 'files.upload', 'files.delete_own', 'nav.explorer', 'nav.settings')")
+
+	DB.Exec("INSERT IGNORE INTO role_permissions (role_id, permission_id) SELECT (SELECT id FROM roles WHERE name = 'owner'), id FROM permissions WHERE `key` LIKE 'nav.%'")
+	DB.Exec("INSERT IGNORE INTO role_permissions (role_id, permission_id) SELECT (SELECT id FROM roles WHERE name = 'admin'), id FROM permissions WHERE `key` IN ('nav.explorer', 'nav.settings')")
 
 	log.Println("RBAC seed data inserted")
+}
+
+func seedFeatureRoutes() {
+	routes := []struct {
+		name, path, icon, desc, category string
+		order                            int
+	}{
+		{"Explorer", "/explorer", "FolderOpen", "Browse and manage your files", "files", 1},
+		{"Settings", "/settings", "Settings", "Manage your connected Google Drive accounts", "account", 2},
+		{"Role Management", "/admin/roles", "ShieldCheck", "Manage roles and permissions", "admin", 3},
+		{"User Management", "/admin/users", "Users", "View and manage user roles", "admin", 4},
+		{"Route Management", "/admin/routes", "Map", "Enable or disable features", "admin", 5},
+	}
+	for _, r := range routes {
+		DB.Exec(
+			"INSERT IGNORE INTO feature_routes (name, path, icon, description, category, display_order) VALUES (?, ?, ?, ?, ?, ?)",
+			r.name, r.path, r.icon, r.desc, r.category, r.order,
+		)
+	}
+	log.Println("Feature routes seeded")
 }
