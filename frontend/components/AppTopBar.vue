@@ -91,16 +91,26 @@ const logout = () => {
   navigateTo('/login')
 }
 
-if (import.meta.client) {
-  document.addEventListener('click', (e) => {
-    if (showUserMenu.value) {
-      const target = e.target as HTMLElement
-      if (!target.closest('.user-menu-wrapper')) {
-        showUserMenu.value = false
-      }
+const handleDocumentClick = (e: MouseEvent) => {
+  if (showUserMenu.value) {
+    const target = e.target as HTMLElement
+    if (!target.closest('.user-menu-wrapper')) {
+      showUserMenu.value = false
     }
-  })
+  }
 }
+
+onMounted(() => {
+  if (import.meta.client) {
+    document.addEventListener('click', handleDocumentClick)
+  }
+})
+
+onUnmounted(() => {
+  if (import.meta.client) {
+    document.removeEventListener('click', handleDocumentClick)
+  }
+})
 </script>
 
 <style scoped>

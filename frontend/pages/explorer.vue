@@ -1,26 +1,5 @@
 <template>
   <div @dragover.prevent @drop.prevent="handleDrop" @dragenter.prevent="dragEnter" @dragleave.prevent="dragLeave">
-      <AppTopBar title="My Drive" subtitle="Browse and manage your files" current-page="explorer">
-        <template #title>
-          <div v-if="breadcrumbs.length" class="breadcrumb">
-            <button class="breadcrumb-item" @click="navigateToFolder(null)">
-              <Home :size="14" />
-              <span>My Drive</span>
-            </button>
-            <template v-for="(crumb, i) in breadcrumbs" :key="crumb.id">
-              <ChevronRight :size="14" class="breadcrumb-sep" />
-              <button class="breadcrumb-item" :class="{ active: i === breadcrumbs.length - 1 }" @click="navigateToFolder(crumb.id)">
-                {{ crumb.name }}
-              </button>
-            </template>
-          </div>
-          <template v-else>
-            <h1 class="page-title">My Drive</h1>
-            <p class="page-subtitle">Browse and manage your files</p>
-          </template>
-        </template>
-      </AppTopBar>
-
       <div v-if="routeLoading" class="empty-state">
         <Loader2 :size="24" class="spin" style="color: var(--color-text-muted);" />
       </div>
@@ -401,6 +380,9 @@ const { apiFetch } = useApi()
 const { can, fetchPermissions } = usePermissions()
 const { enabled: routeEnabled, loading: routeLoading, description: routeDesc, checkRoute: checkFeatureRoute } = useFeatureRoute('/explorer')
 const route = useRoute()
+
+const topbar = useState('topbar')
+topbar.value = { title: 'My Drive', subtitle: 'Browse and manage your files', currentPage: 'explorer' }
 const router = useRouter()
 
 const files = ref<any[]>([])

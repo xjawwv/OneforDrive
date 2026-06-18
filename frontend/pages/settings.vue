@@ -1,14 +1,5 @@
 <template>
   <div>
-      <AppTopBar title="Drive Accounts" subtitle="Manage your connected Google Drive accounts" current-page="settings">
-        <template #actions>
-          <button v-if="routeEnabled" class="btn-primary" @click="connectAccount">
-            <Plus :size="16" />
-            <span>Connect Drive</span>
-          </button>
-        </template>
-      </AppTopBar>
-
       <div v-if="routeLoading" class="empty-state">
         <Loader2 :size="24" class="spin" style="color: var(--color-text-muted);" />
       </div>
@@ -89,10 +80,20 @@
 
 <script setup lang="ts">
 import { Plus, Trash2, RefreshCw, ShieldCheck, Users, Loader2, AlertTriangle } from 'lucide-vue-next'
+import { h } from 'vue'
+
+const topbar = useState('topbar')
+topbar.value = { title: 'Drive Accounts', subtitle: 'Manage your connected Google Drive accounts', currentPage: 'settings' }
+const topbarActionsFn = inject<Ref<(() => any) | null>>('topbar:actions', ref(null))
 
 const { apiFetch } = useApi()
 const { can, fetchPermissions } = usePermissions()
 const { enabled: routeEnabled, loading: routeLoading, description: routeDesc, checkRoute: checkFeatureRoute } = useFeatureRoute('/settings')
+topbarActionsFn.value = {
+  setup() {
+    return () => routeEnabled.value ? h('button', { class: 'btn-primary', onClick: connectAccount }, [h(Plus, { size: 16 }), h('span', null, 'Connect Drive')]) : null
+  }
+}
 
 const accounts = ref<any[]>([])
 const loading = ref(true)

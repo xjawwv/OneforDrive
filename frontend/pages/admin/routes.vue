@@ -1,7 +1,5 @@
 <template>
   <div>
-      <AppTopBar title="Route Management" subtitle="Enable or disable features" current-page="routes" />
-
       <div v-if="loading" class="empty-state">
         <Loader2 :size="24" class="spin" style="color: var(--color-text-muted);" />
       </div>
@@ -36,6 +34,9 @@ const { apiFetch } = useApi()
 const { can, fetchPermissions } = usePermissions()
 const routes = ref<any[]>([])
 const loading = ref(true)
+
+const topbar = useState('topbar')
+topbar.value = { title: 'Route Management', subtitle: 'Enable or disable features', currentPage: 'routes' }
 
 const iconMap: Record<string, any> = {
   FolderOpen,

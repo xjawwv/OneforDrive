@@ -1,13 +1,5 @@
 <template>
   <div>
-      <AppTopBar title="Role Management" subtitle="Manage roles and permissions" current-page="settings">
-        <template #actions>
-          <button class="btn-primary" @click="showCreateModal = true">
-            <Plus :size="16" />
-            <span>New Role</span>
-          </button>
-        </template>
-      </AppTopBar>
       <div class="header-divider"></div>
 
       <div v-if="loading" class="empty-state">
@@ -86,6 +78,12 @@
 
 <script setup lang="ts">
 import { Plus, ShieldCheck, ChevronRight, X, Loader2, Lock } from 'lucide-vue-next'
+import { h } from 'vue'
+
+const topbar = useState('topbar')
+topbar.value = { title: 'Role Management', subtitle: 'Manage roles and permissions', currentPage: 'settings' }
+const topbarActionsFn = inject<Ref<(() => any) | null>>('topbar:actions', ref(null))
+topbarActionsFn.value = { render: () => h('button', { class: 'btn-primary', onClick: () => { showCreateModal.value = true } }, [h(Plus, { size: 16 }), h('span', null, 'New Role')]) }
 
 const { apiFetch } = useApi()
 const { can, fetchPermissions } = usePermissions()

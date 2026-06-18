@@ -1,7 +1,5 @@
 <template>
   <div>
-      <AppTopBar title="User Management" subtitle="View and manage user roles" current-page="users" />
-
       <div v-if="loading" class="empty-state">
         <Loader2 :size="24" class="spin" style="color: var(--color-text-muted);" />
       </div>
@@ -52,6 +50,9 @@ const { can, fetchPermissions } = usePermissions()
 const users = ref<any[]>([])
 const allRoles = ref<any[]>([])
 const loading = ref(true)
+
+const topbar = useState('topbar')
+topbar.value = { title: 'User Management', subtitle: 'View and manage user roles', currentPage: 'users' }
 
 const loadUsers = async () => {
   loading.value = true
