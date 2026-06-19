@@ -303,69 +303,84 @@ NGINX_CONF
     sudo nginx -t && sudo systemctl reload nginx
     ok "Nginx configured."
 
-    # Install Certbot
-    info "Installing Certbot..."
-    CERTBOT_CMD=""
-    if [ "$PKG_MGR" = "apt" ]; then
-        sudo apt-get install -y certbot python3-certbot-nginx
-
-        # Fix: deadsnakes PPA installs Python 3.13 which breaks certbot's cffi.
-        # Detect which python certbot uses and check if cffi works.
-        CERTBOT_BIN="$(which certbot)"
-        CERTBOT_PYTHON="$(head -1 "$CERTBOT_BIN" | sed 's/^#!//')"
-        if ! "$CERTBOT_PYTHON" -c "import cffi" 2>/dev/null; then
-            warn "cffi broken for $CERTBOT_PYTHON — setting up isolated certbot venv..."
-            # Install python3.12 if not present (deadsnakes PPA may only have 3.13)
-            if ! command -v python3.12 &>/dev/null; then
-                sudo apt-get install -y python3.12 python3.12-venv 2>/dev/null || true
-            fi
-            if command -v python3.12 &>/dev/null; then
-                CERTBOT_VENV="/opt/certbot-venv"
-                if [ ! -d "$CERTBOT_VENV" ]; then
-                    sudo python3.12 -m venv "$CERTBOT_VENV"
-                    sudo "$CERTBOT_VENV/bin/pip" install certbot certbot-nginx
-                fi
-                if [ -x "$CERTBOT_VENV/bin/certbot" ]; then
-                    CERTBOT_CMD="sudo $CERTBOT_VENV/bin/certbot --nginx"
-                fi
-            fi
-            if [ -z "$CERTBOT_CMD" ]; then
-                warn "python3.12 not available — using pip-installed certbot..."
-                sudo pip3 install certbot certbot-nginx 2>/dev/null || \
-                sudo python3 -m pip install certbot certbot-nginx 2>/dev/null || true
-                CERTBOT_CMD="sudo certbot --nginx"
-            fi
-        else
-            CERTBOT_CMD="sudo certbot --nginx"
-        fi
-    elif [ "$PKG_MGR" = "dnf" ] || [ "$PKG_MGR" = "yum" ]; then
-        sudo $PKG_MGR install -y certbot python3-certbot-nginx
-        CERTBOT_CMD="sudo certbot --nginx"
+    # Pre-flight DNS check
+    info "Checking DNS for ${DOMAIN_NAME}..."
+    SERVER_IP="$(curl -s -4 ifconfig.me 2>/dev/null || curl -s -4 icanhazip.com 2>/dev/null || echo "")"
+    DOMAIN_IP=""
+    if command -v dig &>/dev/null; then
+        DOMAIN_IP="$(dig +short "$DOMAIN_NAME" A 2>/dev/null | tail -n1)"
+    elif command -v nslookup &>/dev/null; then
+        DOMAIN_IP="$(nslookup "$DOMAIN_NAME" 2>/dev/null | awk '/^Address: / { print $2 }' | tail -n1)"
     fi
-    ok "Certbot installed."
+
+    if [ -n "$SERVER_IP" ] && [ -n "$DOMAIN_IP" ] && [ "$SERVER_IP" != "$DOMAIN_IP" ]; then
+        warn "DNS mismatch: ${DOMAIN_NAME} resolves to ${DOMAIN_IP}, but this server's IP is ${SERVER_IP}."
+        warn "Certbot will likely fail. Update your DNS A record, then re-run this script."
+        read -rp "$(echo -e "${BOLD}Continue anyway? [y/N]: ${NC}")" CONTINUE_ANYWAY
+        if [[ ! "$CONTINUE_ANYWAY" =~ ^[Yy]$ ]]; then
+            SETUP_DOMAIN=false
+        fi
+    elif [ -n "$SERVER_IP" ] && [ -n "$DOMAIN_IP" ]; then
+        ok "DNS OK: ${DOMAIN_NAME} → ${DOMAIN_IP}"
+    else
+        warn "Could not verify DNS — proceeding anyway."
+    fi
+fi
+
+if [ "$SETUP_DOMAIN" = true ]; then
+    # Install Certbot via snap (bundles its own Python — avoids system Python version conflicts)
+    info "Installing Certbot..."
+    if ! command -v snap &>/dev/null; then
+        if [ "$PKG_MGR" = "apt" ]; then
+            sudo apt-get install -y snapd
+        elif [ "$PKG_MGR" = "dnf" ] || [ "$PKG_MGR" = "yum" ]; then
+            sudo $PKG_MGR install -y snapd
+            sudo systemctl enable --now snapd.socket
+            sudo ln -sf /var/lib/snapd/snap /snap
+        fi
+    fi
+
+    sudo snap install core 2>/dev/null || true
+    sudo snap refresh core 2>/dev/null || true
+
+    # Remove any conflicting apt-installed certbot first
+    sudo apt-get remove -y certbot python3-certbot-nginx 2>/dev/null || true
+
+    sudo snap install --classic certbot
+    sudo ln -sf /snap/bin/certbot /usr/bin/certbot
+    ok "Certbot installed (via snap)."
 
     # Obtain SSL certificate
     info "Requesting SSL certificate for ${DOMAIN_NAME}..."
-    $CERTBOT_CMD -d "$DOMAIN_NAME" --non-interactive --agree-tos --email "$SETUP_EMAIL" || {
+    SSL_SUCCESS=false
+    if sudo certbot --nginx -d "$DOMAIN_NAME" --non-interactive --agree-tos --email "$SETUP_EMAIL"; then
+        SSL_SUCCESS=true
+    else
         warn "Certbot failed — check DNS A record points to this server."
         warn "You can retry manually: sudo certbot --nginx -d ${DOMAIN_NAME}"
-    }
-
-    # Set up auto-renewal
-    if command -v systemctl &>/dev/null; then
-        sudo systemctl enable certbot.timer 2>/dev/null || true
-        sudo systemctl start certbot.timer 2>/dev/null || true
-        ok "Certbot auto-renewal enabled."
     fi
 
-    # Update .env with production URLs
-    if [ -f "$SCRIPT_DIR/.env" ]; then
-        sed -i "s|^FRONTEND_URL=.*|FRONTEND_URL=https://${DOMAIN_NAME}|" "$SCRIPT_DIR/.env"
-        sed -i "s|^NUXT_PUBLIC_API_BASE=.*|NUXT_PUBLIC_API_BASE=https://${DOMAIN_NAME}|" "$SCRIPT_DIR/.env"
-        sed -i "s|^GOOGLE_REDIRECT_URL=.*|GOOGLE_REDIRECT_URL=https://${DOMAIN_NAME}/api/accounts/oauth/callback|" "$SCRIPT_DIR/.env"
-    fi
+    if [ "$SSL_SUCCESS" = true ]; then
+        # Set up auto-renewal
+        if command -v systemctl &>/dev/null; then
+            sudo systemctl enable certbot.timer 2>/dev/null || true
+            sudo systemctl start certbot.timer 2>/dev/null || true
+            ok "Certbot auto-renewal enabled."
+        fi
 
-    ok "Domain + SSL setup complete: https://${DOMAIN_NAME}"
+        # Update .env with production URLs
+        if [ -f "$SCRIPT_DIR/.env" ]; then
+            sed -i "s|^FRONTEND_URL=.*|FRONTEND_URL=https://${DOMAIN_NAME}|" "$SCRIPT_DIR/.env"
+            sed -i "s|^NUXT_PUBLIC_API_BASE=.*|NUXT_PUBLIC_API_BASE=https://${DOMAIN_NAME}|" "$SCRIPT_DIR/.env"
+            sed -i "s|^GOOGLE_REDIRECT_URL=.*|GOOGLE_REDIRECT_URL=https://${DOMAIN_NAME}/api/accounts/oauth/callback|" "$SCRIPT_DIR/.env"
+        fi
+
+        ok "Domain + SSL setup complete: https://${DOMAIN_NAME}"
+    else
+        warn "SSL setup incomplete — site will run on HTTP only for now: http://${DOMAIN_NAME}"
+        warn "Fix DNS, then retry: sudo certbot --nginx -d ${DOMAIN_NAME}"
+        SETUP_DOMAIN=false   # so the final summary doesn't show a broken https:// URL
+    fi
 fi
 
 # ── 7. Start services ───────────────────────────────────────────────────────
@@ -400,6 +415,8 @@ ok "All services are up."
 echo ""
 if [ "$SETUP_DOMAIN" = true ]; then
     SITE_URL="https://${DOMAIN_NAME}"
+elif [ -n "$DOMAIN_NAME" ]; then
+    SITE_URL="http://${DOMAIN_NAME}"
 else
     SITE_URL="http://localhost:3000"
 fi
@@ -421,6 +438,9 @@ echo -e "${YELLOW}Next steps:${NC}"
 echo -e "  1. Set ${BOLD}GOOGLE_CLIENT_ID${NC} and ${BOLD}GOOGLE_CLIENT_SECRET${NC} in .env"
 if [ "$SETUP_DOMAIN" = true ]; then
     echo -e "  2. Open ${BOLD}https://${DOMAIN_NAME}${NC} and register an account"
+elif [ -n "$DOMAIN_NAME" ]; then
+    echo -e "  2. Open ${BOLD}http://${DOMAIN_NAME}${NC} and register an account"
+    echo -e "     (SSL not active — run ${BOLD}sudo certbot --nginx -d ${DOMAIN_NAME}${NC} after DNS is pointed)"
 else
     echo -e "  2. Open http://localhost:3000 and register an account"
 fi
