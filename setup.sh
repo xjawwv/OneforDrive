@@ -72,7 +72,7 @@ else
     else
         curl -fsSL https://get.docker.com | sudo sh
         sudo usermod -aG docker "$USER" 2>/dev/null || true
-        ok "Docker installed. You may need to log out and back in for group changes."
+        ok "Docker installed."
     fi
 fi
 
@@ -83,6 +83,15 @@ else
     info "Installing Docker Compose plugin..."
     sudo apt-get update -qq && sudo apt-get install -y docker-compose-plugin
     ok "Docker Compose installed."
+fi
+
+# Wrapper: if docker needs sudo (user just added to group, session not refreshed),
+# use sg docker to run the remaining docker compose commands.
+if ! docker info &>/dev/null 2>&1; then
+    if groups "$USER" 2>/dev/null | grep -qw docker; then
+        warn "Docker group not active in this session — using sg docker wrapper."
+        docker() { command sg docker -c "docker $*"; }
+    fi
 fi
 
 # ── 2. Python 3 ─────────────────────────────────────────────────────────────
@@ -298,14 +307,23 @@ NGINX_CONF
     info "Installing Certbot..."
     if [ "$PKG_MGR" = "apt" ]; then
         sudo apt-get install -y certbot python3-certbot-nginx
+        # Fix: deadsnakes PPA installs Python 3.13 which breaks certbot's cffi.
+        # If python3.12 is available, use it directly to avoid the issue.
+        if command -v python3.12 &>/dev/null && ! python3 -c "import cffi" 2>/dev/null; then
+            warn "Using python3.12 for certbot (avoids deadsnakes cffi issue)."
+            CERTBOT_CMD="sudo python3.12 -m certbot --nginx"
+        else
+            CERTBOT_CMD="sudo certbot --nginx"
+        fi
     elif [ "$PKG_MGR" = "dnf" ] || [ "$PKG_MGR" = "yum" ]; then
         sudo $PKG_MGR install -y certbot python3-certbot-nginx
+        CERTBOT_CMD="sudo certbot --nginx"
     fi
     ok "Certbot installed."
 
     # Obtain SSL certificate
     info "Requesting SSL certificate for ${DOMAIN_NAME}..."
-    sudo certbot --nginx -d "$DOMAIN_NAME" --non-interactive --agree-tos --email "$SETUP_EMAIL" || {
+    $CERTBOT_CMD -d "$DOMAIN_NAME" --non-interactive --agree-tos --email "$SETUP_EMAIL" || {
         warn "Certbot failed — check DNS A record points to this server."
         warn "You can retry manually: sudo certbot --nginx -d ${DOMAIN_NAME}"
     }
@@ -357,10 +375,16 @@ ok "All services are up."
 
 # ── Summary ──────────────────────────────────────────────────────────────────
 echo ""
+if [ "$SETUP_DOMAIN" = true ]; then
+    SITE_URL="https://${DOMAIN_NAME}"
+else
+    SITE_URL="http://localhost:3000"
+fi
+
 echo -e "${BOLD}╔══════════════════════════════════════════╗${NC}"
 echo -e "${BOLD}║         Setup Complete! 🚀               ║${NC}"
 echo -e "${BOLD}╠══════════════════════════════════════════╣${NC}"
-echo -e "${BOLD}║${NC}  Frontend  →  http://localhost:3000      ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}  Site      →  ${SITE_URL}       ${BOLD}║${NC}"
 echo -e "${BOLD}║${NC}  Backend   →  http://localhost:8081      ${BOLD}║${NC}"
 echo -e "${BOLD}║${NC}  MySQL     →  localhost:3306             ${BOLD}║${NC}"
 echo -e "${BOLD}║${NC}  Redis     →  localhost:6379             ${BOLD}║${NC}"
