@@ -151,9 +151,6 @@ func (h *FileHandler) DownloadByName(c *gin.Context) {
 
 		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, f.Name))
 		c.Header("Content-Type", f.MimeType)
-		if f.SizeTotal > 0 {
-			c.Header("Content-Length", fmt.Sprintf("%d", f.SizeTotal))
-		}
 		c.Status(http.StatusOK)
 
 		for _, res := range results {
