@@ -51,8 +51,10 @@ func generateSessionID() string {
 	return hex.EncodeToString(h[:16])
 }
 
-func (h *FileHandler) StartDownloadByName(c *gin.Context) {
+func (h *FileHandler) DownloadByName(c *gin.Context) {
 	userID := c.GetInt64("user_id")
+	action := c.Query("action")
+
 	var req struct {
 		Name string `json:"name" binding:"required"`
 	}
@@ -88,9 +90,9 @@ func (h *FileHandler) StartDownloadByName(c *gin.Context) {
 
 	var chunks []downloadChunkInfo
 	for rows.Next() {
-		var c downloadChunkInfo
-		if err := rows.Scan(&c.Index, &c.DriveFileID, &c.AccountID, &c.ChunkSize); err == nil {
-			chunks = append(chunks, c)
+		var ci downloadChunkInfo
+		if err := rows.Scan(&ci.Index, &ci.DriveFileID, &ci.AccountID, &ci.ChunkSize); err == nil {
+			chunks = append(chunks, ci)
 		}
 	}
 
@@ -99,6 +101,73 @@ func (h *FileHandler) StartDownloadByName(c *gin.Context) {
 		return
 	}
 
+	// action=download → serve the assembled file directly (no async session)
+	if action == "download" {
+		sort.Slice(chunks, func(i, j int) bool {
+			return chunks[i].Index < chunks[j].Index
+		})
+
+		type chunkData struct {
+			data []byte
+			err  error
+			done chan struct{}
+		}
+
+		results := make([]chunkData, len(chunks))
+		for i := range results {
+			results[i].done = make(chan struct{})
+		}
+
+		for i, ch := range chunks {
+			go func(idx int, ci downloadChunkInfo) {
+				defer close(results[idx].done)
+
+				accessToken, err := service.GetAccessTokenForAccount(h.DB, ci.AccountID)
+				if err != nil {
+					results[idx].err = fmt.Errorf("token error chunk %d: %w", ci.Index, err)
+					return
+				}
+
+				driveURL := fmt.Sprintf("https://www.googleapis.com/drive/v3/files/%s?alt=media", ci.DriveFileID)
+				req, err := http.NewRequest("GET", driveURL, nil)
+				if err != nil {
+					results[idx].err = err
+					return
+				}
+				req.Header.Set("Authorization", "Bearer "+accessToken)
+
+				resp, err := http.DefaultClient.Do(req)
+				if err != nil {
+					results[idx].err = fmt.Errorf("drive download failed chunk %d: %w", ci.Index, err)
+					return
+				}
+				defer resp.Body.Close()
+
+				data, err := io.ReadAll(resp.Body)
+				results[idx].data = data
+				results[idx].err = err
+			}(i, ch)
+		}
+
+		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, f.Name))
+		c.Header("Content-Type", f.MimeType)
+		if f.SizeTotal > 0 {
+			c.Header("Content-Length", fmt.Sprintf("%d", f.SizeTotal))
+		}
+		c.Status(http.StatusOK)
+
+		for _, res := range results {
+			<-res.done
+			if res.err != nil {
+				log.Printf("Chunk download error: %v", res.err)
+				continue
+			}
+			c.Writer.Write(res.data)
+		}
+		return
+	}
+
+	// Default: start async download session
 	sessionID := generateSessionID()
 	tmpDir := filepath.Join(os.TempDir(), "routestorage_downloads")
 	os.MkdirAll(tmpDir, 0755)

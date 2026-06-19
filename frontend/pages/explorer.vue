@@ -748,7 +748,7 @@ const downloadFile = async (file: any) => {
   })
   const idx = activeDownloads.value.length - 1
   try {
-    const resp = await apiFetch('/api/files/download-by-name', {
+    const resp = await apiFetch('/api/files/download-by-name?action=start', {
       method: 'POST',
       body: { name: file.name }
     }) as any
@@ -783,7 +783,7 @@ const pollDownloadProgress = async (idx: number, fileName: string) => {
       if (data.status === 'ready') {
         activeDownloads.value[idx].status = 'done'
         activeDownloads.value[idx].progress = 100
-        const fileResp = await fetch(`${apiBase}/api/files/download-by-name`, {
+        const fileResp = await fetch(`${apiBase}/api/files/download-by-name?action=download`, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${token}`,
