@@ -204,7 +204,8 @@ else
     MYSQL_PASS="$(openssl rand -hex 16 2>/dev/null || head -c 32 /dev/urandom | xxd -p | tr -d '\n')"
     MYSQL_ROOT_PASS="$(openssl rand -hex 16 2>/dev/null || head -c 32 /dev/urandom | xxd -p | tr -d '\n')"
 
-    cp "$SCRIPT_DIR/.env.example" "$SCRIPT_DIR/.env"
+    # Copy .env.example but strip comment lines (Docker Compose .env parser doesn't support # comments)
+    grep -v '^\s*#' "$SCRIPT_DIR/.env.example" | grep -v '^\s*$' > "$SCRIPT_DIR/.env"
 
     # Fill in generated values
     sed -i "s/^MYSQL_ROOT_PASSWORD=.*/MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASS}/" "$SCRIPT_DIR/.env"
