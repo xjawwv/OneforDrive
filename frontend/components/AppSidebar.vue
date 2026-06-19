@@ -17,10 +17,10 @@
             <template v-for="r in group" :key="r.id">
               <NuxtLink
                 v-if="canViewRoute(r)"
-                :to="r.enabled ? r.path : '#'"
+                :to="r.path"
                 class="sidebar-link"
                 :class="{ active: route.path === r.path, disabled: !r.enabled }"
-                @click="handleClick(r)"
+                @click="sidebarOpen = false"
               >
                 <component :is="getIcon(r.icon)" :size="18" />
                 <span>{{ r.name }}</span>
@@ -80,11 +80,6 @@ const canViewRoute = (r: any) => {
   if (r.path === '/admin/users') return can('nav.admin')
   if (r.path === '/admin/routes') return can('nav.route_management')
   return true
-}
-
-const handleClick = (r: any) => {
-  if (!r.enabled) return
-  sidebarOpen.value = false
 }
 
 const loadRoutes = async () => {

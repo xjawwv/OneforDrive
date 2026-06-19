@@ -1,18 +1,7 @@
 <template>
+  <FeatureGate route-path="/explorer">
   <div @dragover.prevent @drop.prevent="handleDrop" @dragenter.prevent="dragEnter" @dragleave.prevent="dragLeave">
-      <div v-if="routeLoading" class="empty-state">
-        <Loader2 :size="24" class="spin" style="color: var(--color-text-muted);" />
-      </div>
-
-      <div v-else-if="!routeEnabled" class="maintenance-state">
-        <div class="maintenance-icon">
-          <AlertTriangle :size="48" />
-        </div>
-        <h2>Feature Under Maintenance</h2>
-        <p>{{ routeDesc || 'This feature is temporarily unavailable. Please check back later.' }}</p>
-      </div>
-
-      <div v-else class="explorer-content">
+      <div class="explorer-content">
       <div class="action-toolbar">
         <div class="view-toggle-wrapper">
           <button class="btn-icon" @click="showViewMenu = !showViewMenu" title="Change view">
@@ -371,14 +360,14 @@
       </Transition>
       </div>
   </div>
+  </FeatureGate>
 </template>
 
 <script setup lang="ts">
-import { FolderOpen, FolderPlus, Upload, Folder, File, Trash2, Download, ChevronRight, Home, Loader2, X, AlertTriangle, LayoutGrid, Grip, Image, Film, Music, FileText, Minus, Plus, Search, Share2, Copy, Check, MoreVertical } from 'lucide-vue-next'
+import { FolderOpen, FolderPlus, Upload, Folder, File, Trash2, Download, ChevronRight, Home, Loader2, X, LayoutGrid, Grip, Image, Film, Music, FileText, Minus, Plus, Search, Share2, Copy, Check, MoreVertical } from 'lucide-vue-next'
 
 const { apiFetch } = useApi()
 const { can, fetchPermissions } = usePermissions()
-const { enabled: routeEnabled, loading: routeLoading, description: routeDesc, checkRoute: checkFeatureRoute } = useFeatureRoute('/explorer')
 const route = useRoute()
 
 const topbar = useState('topbar')
@@ -1023,8 +1012,6 @@ onMounted(async () => {
   }
   await fetchPermissions()
   if (!can('nav.explorer')) { navigateTo('/'); return }
-  await checkFeatureRoute()
-  if (!routeEnabled.value) return
   const folderParam = route.query.folder
   if (folderParam) {
     currentFolder.value = Number(folderParam)
@@ -1166,34 +1153,6 @@ onMounted(async () => {
   justify-content: center;
   text-align: center;
   padding: 5rem 1.5rem;
-}
-
-.maintenance-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 5rem 1.5rem;
-}
-
-.maintenance-state .maintenance-icon {
-  color: var(--color-text-muted);
-  margin-bottom: 1rem;
-}
-
-.maintenance-state h2 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--color-text-primary);
-  margin: 0 0 0.5rem 0;
-}
-
-.maintenance-state p {
-  font-size: 0.875rem;
-  color: var(--color-text-muted);
-  margin: 0;
-  max-width: 400px;
 }
 
 .file-list-header {

@@ -1,18 +1,7 @@
 <template>
   <div>
-      <div v-if="routeLoading" class="empty-state">
-        <Loader2 :size="24" class="spin" style="color: var(--color-text-muted);" />
-      </div>
-
-      <div v-else-if="!routeEnabled" class="maintenance-state">
-        <div class="maintenance-icon">
-          <AlertTriangle :size="48" />
-        </div>
-        <h2>Feature Under Maintenance</h2>
-        <p>{{ routeDesc || 'This feature is temporarily unavailable. Please check back later.' }}</p>
-      </div>
-
-      <div v-else class="settings-content">
+      <FeatureGate route-path="/settings">
+      <div class="settings-content">
       <div class="card" style="margin-bottom: 1.5rem;">
         <h2 class="section-title">Storage Overview</h2>
         <div class="stats-grid">
@@ -75,11 +64,12 @@
         </div>
       </div>
       </div>
+      </FeatureGate>
   </div>
 </template>
 
 <script setup lang="ts">
-import { Plus, Trash2, RefreshCw, ShieldCheck, Users, Loader2, AlertTriangle } from 'lucide-vue-next'
+import { Plus, Trash2, RefreshCw, ShieldCheck, Users } from 'lucide-vue-next'
 import { h } from 'vue'
 
 const topbar = useState('topbar')
@@ -88,10 +78,9 @@ const topbarActionsFn = inject<Ref<(() => any) | null>>('topbar:actions', ref(nu
 
 const { apiFetch } = useApi()
 const { can, fetchPermissions } = usePermissions()
-const { enabled: routeEnabled, loading: routeLoading, description: routeDesc, checkRoute: checkFeatureRoute } = useFeatureRoute('/settings')
 topbarActionsFn.value = {
   setup() {
-    return () => routeEnabled.value ? h('button', { class: 'btn-primary', onClick: connectAccount }, [h(Plus, { size: 16 }), h('span', null, 'Connect Drive')]) : null
+    return () => h('button', { class: 'btn-primary', onClick: connectAccount }, [h(Plus, { size: 16 }), h('span', null, 'Connect Drive')])
   }
 }
 
@@ -154,60 +143,12 @@ onMounted(async () => {
   }
   await fetchPermissions()
   if (!can('nav.settings')) { navigateTo('/'); return }
-  await checkFeatureRoute()
-  if (!routeEnabled.value) return
   loadAccounts()
   loadStats()
 })
 </script>
 
 <style scoped>
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 5rem 1.5rem;
-}
-
-.maintenance-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 5rem 1.5rem;
-}
-
-.maintenance-state .maintenance-icon {
-  color: var(--color-text-muted);
-  margin-bottom: 1rem;
-}
-
-.maintenance-state h2 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--color-text-primary);
-  margin: 0 0 0.5rem 0;
-}
-
-.maintenance-state p {
-  font-size: 0.875rem;
-  color: var(--color-text-muted);
-  margin: 0;
-  max-width: 400px;
-}
-
-.spin {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
 .section-title {
   font-size: 0.9375rem;
   font-weight: 600;
