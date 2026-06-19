@@ -207,11 +207,11 @@ else
     # Copy .env.example but strip comment lines (Docker Compose .env parser doesn't support # comments)
     grep -v '^\s*#' "$SCRIPT_DIR/.env.example" | grep -v '^\s*$' > "$SCRIPT_DIR/.env"
 
-    # Fill in generated values
-    sed -i "s/^MYSQL_ROOT_PASSWORD=.*/MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASS}/" "$SCRIPT_DIR/.env"
-    sed -i "s/^MYSQL_PASSWORD=.*/MYSQL_PASSWORD=${MYSQL_PASS}/" "$SCRIPT_DIR/.env"
-    sed -i "s/^DB_PASSWORD=.*/DB_PASSWORD=${MYSQL_PASS}/" "$SCRIPT_DIR/.env"
-    sed -i "s/^JWT_SECRET=.*/JWT_SECRET=${JWT_SECRET}/" "$SCRIPT_DIR/.env"
+    # Fill in generated values (use | as sed delimiter to avoid conflicts with special chars)
+    sed -i "s|^MYSQL_ROOT_PASSWORD=.*|MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASS}|" "$SCRIPT_DIR/.env"
+    sed -i "s|^MYSQL_PASSWORD=.*|MYSQL_PASSWORD=${MYSQL_PASS}|" "$SCRIPT_DIR/.env"
+    sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=${MYSQL_PASS}|" "$SCRIPT_DIR/.env"
+    sed -i "s|^JWT_SECRET=.*|JWT_SECRET=${JWT_SECRET}|" "$SCRIPT_DIR/.env"
 
     ok ".env generated with random secrets."
 fi
