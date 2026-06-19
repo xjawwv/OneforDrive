@@ -305,13 +305,28 @@ NGINX_CONF
 
     # Install Certbot
     info "Installing Certbot..."
+    CERTBOT_CMD=""
     if [ "$PKG_MGR" = "apt" ]; then
         sudo apt-get install -y certbot python3-certbot-nginx
+
         # Fix: deadsnakes PPA installs Python 3.13 which breaks certbot's cffi.
-        # If python3.12 is available, use it directly to avoid the issue.
-        if command -v python3.12 &>/dev/null && ! python3 -c "import cffi" 2>/dev/null; then
-            warn "Using python3.12 for certbot (avoids deadsnakes cffi issue)."
-            CERTBOT_CMD="sudo python3.12 -m certbot --nginx"
+        # Detect which python certbot uses and check if cffi works.
+        CERTBOT_BIN="$(which certbot)"
+        CERTBOT_PYTHON="$(head -1 "$CERTBOT_BIN" | sed 's/^#!//')"
+        if ! "$CERTBOT_PYTHON" -c "import cffi" 2>/dev/null; then
+            warn "cffi broken for $CERTBOT_PYTHON — setting up isolated certbot venv..."
+            sudo apt-get install -y python3.12-venv 2>/dev/null || true
+            CERTBOT_VENV="/opt/certbot-venv"
+            if [ ! -d "$CERTBOT_VENV" ]; then
+                sudo python3.12 -m venv "$CERTBOT_VENV" 2>/dev/null && \
+                sudo "$CERTBOT_VENV/bin/pip" install certbot certbot-nginx 2>/dev/null || true
+            fi
+            if [ -x "$CERTBOT_VENV/bin/certbot" ]; then
+                CERTBOT_CMD="sudo $CERTBOT_VENV/bin/certbot --nginx"
+            else
+                warn "Could not create certbot venv. Trying python3.12 directly..."
+                CERTBOT_CMD="sudo python3.12 -m certbot --nginx"
+            fi
         else
             CERTBOT_CMD="sudo certbot --nginx"
         fi
