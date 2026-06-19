@@ -46,6 +46,16 @@ echo -e "\n${BOLD}╔═══════════════════�
 echo -e "${BOLD}║      OneforDrive — Dev Setup             ║${NC}"
 echo -e "${BOLD}╚══════════════════════════════════════════╝${NC}\n"
 
+# ── 0. Fix broken apt (common on fresh Ubuntu) ──────────────────────────────
+if [ "$OS" = "Linux" ] && [ "$PKG_MGR" = "apt" ]; then
+    if ! sudo apt-get update -qq &>/dev/null; then
+        warn "apt-get update failed — fixing broken cnf-update-db hook..."
+        sudo rm -f /etc/apt/apt.conf.d/50command-not-found 2>/dev/null || true
+        sudo dpkg --configure -a 2>/dev/null || true
+        sudo apt-get update -qq 2>/dev/null || true
+    fi
+fi
+
 # ── 1. Docker ────────────────────────────────────────────────────────────────
 info "Checking Docker..."
 if command -v docker &>/dev/null; then
@@ -71,7 +81,7 @@ if docker compose version &>/dev/null; then
     ok "Docker Compose already installed: $(docker compose version --short)"
 else
     info "Installing Docker Compose plugin..."
-    sudo apt-get update && sudo apt-get install -y docker-compose-plugin
+    sudo apt-get update -qq && sudo apt-get install -y docker-compose-plugin
     ok "Docker Compose installed."
 fi
 
