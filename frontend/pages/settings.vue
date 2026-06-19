@@ -35,6 +35,10 @@
       </div>
 
       <div v-else style="display: flex; flex-direction: column; gap: 0.75rem;">
+        <button class="btn-primary" style="align-self: flex-start;" @click="connectAccount">
+          <Plus :size="16" />
+          <span>Connect Another Drive</span>
+        </button>
         <div v-for="account in accounts" :key="account.id" class="card account-card">
           <div class="account-info">
             <div class="account-avatar">
