@@ -149,16 +149,20 @@ func (h *FileHandler) DownloadByName(c *gin.Context) {
 			}(i, ch)
 		}
 
+		for _, res := range results {
+			<-res.done
+			if res.err != nil {
+				log.Printf("Chunk download error: %v", res.err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("chunk download failed: %v", res.err)})
+				return
+			}
+		}
+
 		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, f.Name))
 		c.Header("Content-Type", f.MimeType)
 		c.Status(http.StatusOK)
 
 		for _, res := range results {
-			<-res.done
-			if res.err != nil {
-				log.Printf("Chunk download error: %v", res.err)
-				continue
-			}
 			c.Writer.Write(res.data)
 		}
 		return
