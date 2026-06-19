@@ -59,6 +59,7 @@ func main() {
 	r.GET("/api/routes", featureRouteH.ListRoutes)
 	r.GET("/api/routes/:path", featureRouteH.GetRoute)
 	r.PUT("/api/routes/:id", middleware.AuthMiddleware(jwtSecret), rbac("users.manage"), featureRouteH.UpdateRoute)
+	r.PUT("/api/routes/:id/exempt-roles", middleware.AuthMiddleware(jwtSecret), rbac("users.manage"), featureRouteH.SetExemptRoles)
 
 	r.GET("/api/accounts/oauth/callback", accountH.OAuthCallback)
 
@@ -101,6 +102,7 @@ func main() {
 	rbacRoutes.Use(middleware.AuthMiddleware(jwtSecret))
 	{
 		rbacRoutes.GET("/me/permissions", rbacH.GetMyPermissions)
+		rbacRoutes.GET("/me/roles", rbacH.GetMyRoles)
 		rbacRoutes.GET("/users", rbac("users.manage"), rbacH.ListUsers)
 		rbacRoutes.GET("/roles", rbac("users.manage"), rbacH.ListRoles)
 		rbacRoutes.POST("/roles", rbac("users.manage"), rbacH.CreateRole)

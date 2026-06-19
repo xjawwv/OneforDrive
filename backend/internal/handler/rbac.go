@@ -178,3 +178,14 @@ func (h *RBACHandler) GetMyPermissions(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"permissions": perms})
 }
+
+func (h *RBACHandler) GetMyRoles(c *gin.Context) {
+	userID := c.GetInt64("user_id")
+	roleIDs, err := repository.GetUserRoleIDs(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get roles"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"role_ids": roleIDs})
+}

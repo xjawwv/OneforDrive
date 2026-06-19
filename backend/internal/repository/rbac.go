@@ -84,6 +84,26 @@ func RemoveRole(userID, roleID int64) error {
 	return err
 }
 
+func GetUserRoleIDs(userID int64) ([]int64, error) {
+	rows, err := DB.Query("SELECT role_id FROM user_roles WHERE user_id = ?", userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if rows.Scan(&id) == nil {
+			ids = append(ids, id)
+		}
+	}
+	if ids == nil {
+		ids = []int64{}
+	}
+	return ids, nil
+}
+
 func ListRoles() ([]model.Role, error) {
 	rows, err := DB.Query("SELECT id, name, description, is_system FROM roles ORDER BY id")
 	if err != nil {

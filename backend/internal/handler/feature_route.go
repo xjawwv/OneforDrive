@@ -2,6 +2,7 @@ package handler
 
 import (
 	"database/sql"
+	"encoding/json"
 	"net/http"
 	"strconv"
 
@@ -13,18 +14,19 @@ type FeatureRouteHandler struct {
 }
 
 type featureRoute struct {
-	ID          int64  `json:"id"`
-	Name        string `json:"name"`
-	Path        string `json:"path"`
-	Icon        string `json:"icon"`
-	Enabled     bool   `json:"enabled"`
-	Description string `json:"description"`
-	Category    string `json:"category"`
-	DisplayOrder int   `json:"display_order"`
+	ID           int64   `json:"id"`
+	Name         string  `json:"name"`
+	Path         string  `json:"path"`
+	Icon         string  `json:"icon"`
+	Enabled      bool    `json:"enabled"`
+	Description  string  `json:"description"`
+	Category     string  `json:"category"`
+	DisplayOrder int     `json:"display_order"`
+	ExemptRoleIDs []int64 `json:"exempt_role_ids"`
 }
 
 func (h *FeatureRouteHandler) ListRoutes(c *gin.Context) {
-	rows, err := h.DB.Query("SELECT id, name, path, icon, enabled, description, category, display_order FROM feature_routes ORDER BY display_order, id")
+	rows, err := h.DB.Query("SELECT id, name, path, icon, enabled, description, category, display_order, exempt_role_ids FROM feature_routes ORDER BY display_order, id")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list routes"})
 		return
@@ -34,7 +36,14 @@ func (h *FeatureRouteHandler) ListRoutes(c *gin.Context) {
 	var routes []featureRoute
 	for rows.Next() {
 		var r featureRoute
-		if err := rows.Scan(&r.ID, &r.Name, &r.Path, &r.Icon, &r.Enabled, &r.Description, &r.Category, &r.DisplayOrder); err == nil {
+		var exemptJSON sql.NullString
+		if err := rows.Scan(&r.ID, &r.Name, &r.Path, &r.Icon, &r.Enabled, &r.Description, &r.Category, &r.DisplayOrder, &exemptJSON); err == nil {
+			if exemptJSON.Valid && exemptJSON.String != "" {
+				json.Unmarshal([]byte(exemptJSON.String), &r.ExemptRoleIDs)
+			}
+			if r.ExemptRoleIDs == nil {
+				r.ExemptRoleIDs = []int64{}
+			}
 			routes = append(routes, r)
 		}
 	}
@@ -50,13 +59,20 @@ func (h *FeatureRouteHandler) GetRoute(c *gin.Context) {
 		path = "/" + path
 	}
 	var r featureRoute
+	var exemptJSON sql.NullString
 	err := h.DB.QueryRow(
-		"SELECT id, name, path, icon, enabled, description, category, display_order FROM feature_routes WHERE path = ?",
+		"SELECT id, name, path, icon, enabled, description, category, display_order, exempt_role_ids FROM feature_routes WHERE path = ?",
 		path,
-	).Scan(&r.ID, &r.Name, &r.Path, &r.Icon, &r.Enabled, &r.Description, &r.Category, &r.DisplayOrder)
+	).Scan(&r.ID, &r.Name, &r.Path, &r.Icon, &r.Enabled, &r.Description, &r.Category, &r.DisplayOrder, &exemptJSON)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "route not found"})
 		return
+	}
+	if exemptJSON.Valid && exemptJSON.String != "" {
+		json.Unmarshal([]byte(exemptJSON.String), &r.ExemptRoleIDs)
+	}
+	if r.ExemptRoleIDs == nil {
+		r.ExemptRoleIDs = []int64{}
 	}
 	c.JSON(http.StatusOK, r)
 }
@@ -97,4 +113,34 @@ func (h *FeatureRouteHandler) UpdateRoute(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "route updated"})
+}
+
+func (h *FeatureRouteHandler) SetExemptRoles(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid route id"})
+		return
+	}
+
+	var req struct {
+		RoleIDs []int64 `json:"role_ids"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var exemptJSON interface{}
+	if len(req.RoleIDs) > 0 {
+		data, _ := json.Marshal(req.RoleIDs)
+		exemptJSON = string(data)
+	}
+
+	_, err = h.DB.Exec("UPDATE feature_routes SET exempt_role_ids = ? WHERE id = ?", exemptJSON, id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update exempt roles"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "exempt roles updated"})
 }

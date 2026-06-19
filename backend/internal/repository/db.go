@@ -157,6 +157,7 @@ func createTables() {
 
 	seedRBAC()
 	seedFeatureRoutes()
+	migrateFeatureRoutes()
 }
 
 func getEnv(key, fallback string) string {
@@ -213,4 +214,45 @@ func seedFeatureRoutes() {
 		)
 	}
 	log.Println("Feature routes seeded")
+}
+
+func migrateFeatureRoutes() {
+	// Add exempt_role_ids column if it doesn't exist
+	DB.Exec("ALTER TABLE feature_routes ADD COLUMN exempt_role_ids JSON NULL")
+
+	// Ensure /admin/routes has all roles exempt (never lock yourself out)
+	rows, err := DB.Query("SELECT id FROM roles")
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+
+	var allRoleIDs []int64
+	for rows.Next() {
+		var id int64
+		if rows.Scan(&id) == nil {
+			allRoleIDs = append(allRoleIDs, id)
+		}
+	}
+
+	if len(allRoleIDs) > 0 {
+		roleIDsJSON := fmt.Sprintf("[%s]", int64SliceToJSON(allRoleIDs))
+		DB.Exec("UPDATE feature_routes SET exempt_role_ids = ? WHERE path = '/admin/routes'", roleIDsJSON)
+	}
+
+	log.Println("Feature routes migration complete")
+}
+
+func int64SliceToJSON(ids []int64) string {
+	if len(ids) == 0 {
+		return ""
+	}
+	result := ""
+	for i, id := range ids {
+		if i > 0 {
+			result += ","
+		}
+		result += fmt.Sprintf("%d", id)
+	}
+	return result
 }

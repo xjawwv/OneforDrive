@@ -5,7 +5,7 @@ node_modules/
 .output/
 *.log
 .env
-.env.*
+!.env.example
 backend/go.sum
 frontend/.output/
 frontend/.nuxt/
