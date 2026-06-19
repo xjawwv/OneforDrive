@@ -315,17 +315,25 @@ NGINX_CONF
         CERTBOT_PYTHON="$(head -1 "$CERTBOT_BIN" | sed 's/^#!//')"
         if ! "$CERTBOT_PYTHON" -c "import cffi" 2>/dev/null; then
             warn "cffi broken for $CERTBOT_PYTHON — setting up isolated certbot venv..."
-            sudo apt-get install -y python3.12-venv 2>/dev/null || true
-            CERTBOT_VENV="/opt/certbot-venv"
-            if [ ! -d "$CERTBOT_VENV" ]; then
-                sudo python3.12 -m venv "$CERTBOT_VENV" 2>/dev/null && \
-                sudo "$CERTBOT_VENV/bin/pip" install certbot certbot-nginx 2>/dev/null || true
+            # Install python3.12 if not present (deadsnakes PPA may only have 3.13)
+            if ! command -v python3.12 &>/dev/null; then
+                sudo apt-get install -y python3.12 python3.12-venv 2>/dev/null || true
             fi
-            if [ -x "$CERTBOT_VENV/bin/certbot" ]; then
-                CERTBOT_CMD="sudo $CERTBOT_VENV/bin/certbot --nginx"
-            else
-                warn "Could not create certbot venv. Trying python3.12 directly..."
-                CERTBOT_CMD="sudo python3.12 -m certbot --nginx"
+            if command -v python3.12 &>/dev/null; then
+                CERTBOT_VENV="/opt/certbot-venv"
+                if [ ! -d "$CERTBOT_VENV" ]; then
+                    sudo python3.12 -m venv "$CERTBOT_VENV"
+                    sudo "$CERTBOT_VENV/bin/pip" install certbot certbot-nginx
+                fi
+                if [ -x "$CERTBOT_VENV/bin/certbot" ]; then
+                    CERTBOT_CMD="sudo $CERTBOT_VENV/bin/certbot --nginx"
+                fi
+            fi
+            if [ -z "$CERTBOT_CMD" ]; then
+                warn "python3.12 not available — using pip-installed certbot..."
+                sudo pip3 install certbot certbot-nginx 2>/dev/null || \
+                sudo python3 -m pip install certbot certbot-nginx 2>/dev/null || true
+                CERTBOT_CMD="sudo certbot --nginx"
             fi
         else
             CERTBOT_CMD="sudo certbot --nginx"
