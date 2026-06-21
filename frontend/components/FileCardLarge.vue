@@ -42,7 +42,7 @@ const thumbnailUrl = (fileId: number) => {
         <Folder :size="48" />
       </template>
       <template v-else-if="isImage(file)">
-        <img :src="thumbnailUrl(file.id)" class="file-thumb" @error="(e: any) => e.target.style.display='none'" crossorigin="anonymous" />
+        <img :src="thumbnailUrl(file.id)" loading="lazy" class="file-thumb" @error="(e: any) => e.target.style.display='none'" crossorigin="anonymous" />
       </template>
       <template v-else>
         <Film v-if="isVideo(file)" :size="48" />

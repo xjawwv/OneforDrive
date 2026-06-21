@@ -17,6 +17,21 @@
             </div>
           </Transition>
         </div>
+        <div class="sort-dropdown-wrapper">
+          <button class="btn-icon" @click="showSortMenu = !showSortMenu" title="Sort by">
+            <ArrowUpDown :size="16" />
+          </button>
+          <Transition name="menu">
+            <div v-if="showSortMenu" class="view-menu">
+              <button v-for="opt in sortOptions" :key="opt.id"
+                class="view-menu-item" :class="{ active: sortField === opt.id }"
+                @click="setSortField(opt.id)">
+                <span>{{ opt.label }}</span>
+                <component :is="sortAsc ? ArrowUp : ArrowDown" v-if="sortField === opt.id" :size="12" class="view-check" />
+              </button>
+            </div>
+          </Transition>
+        </div>
         <button class="btn-secondary" @click="showNewFolder = true">
           <FolderPlus :size="16" />
           <span>New Folder</span>
@@ -93,7 +108,7 @@
               </div>
               <div class="file-list">
                 <FileRowDetails
-                  v-for="file in files"
+                  v-for="file in sortedFiles"
                   :key="file.id"
                   :file="file"
                   :selected="isSelected(file.id)"
@@ -108,7 +123,7 @@
             <!-- Large icons -->
             <div v-else-if="viewMode === 'large'" class="file-grid-large">
               <FileCardLarge
-                v-for="file in files"
+                v-for="file in sortedFiles"
                 :key="file.id"
                 :file="file"
                 :selected="isSelected(file.id)"
@@ -122,7 +137,7 @@
             <!-- Medium icons -->
             <div v-else-if="viewMode === 'medium'" class="file-grid-medium">
               <FileCardMedium
-                v-for="file in files"
+                v-for="file in sortedFiles"
                 :key="file.id"
                 :file="file"
                 :selected="isSelected(file.id)"
@@ -136,7 +151,7 @@
             <!-- Small icons -->
             <div v-else-if="viewMode === 'small'" class="file-grid-small">
               <FileCardSmall
-                v-for="file in files"
+                v-for="file in sortedFiles"
                 :key="file.id"
                 :file="file"
                 :selected="isSelected(file.id)"
@@ -355,7 +370,7 @@
 </template>
 
 <script setup lang="ts">
-import { FolderOpen, FolderPlus, Upload, File, Trash2, Download, ChevronRight, Home, Loader2, X, LayoutGrid, Grip, Image, Minus, Plus, Search, Share2, Copy, Check, MoreVertical, Square, CheckSquare } from 'lucide-vue-next'
+import { FolderOpen, FolderPlus, Upload, File, Trash2, Download, ChevronRight, Home, Loader2, X, LayoutGrid, Grip, Image, Minus, Plus, Search, Share2, Copy, Check, MoreVertical, Square, CheckSquare, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-vue-next'
 
 const { apiFetch } = useApi()
 const { can, fetchPermissions } = usePermissions()
@@ -399,12 +414,61 @@ const viewModes = [
   { id: 'medium', label: 'Medium icons', icon: Grip },
 ]
 
+// Sort
+type SortField = 'name' | 'size' | 'date'
+const sortField = ref<SortField>('name')
+const sortAsc = ref(true)
+const showSortMenu = ref(false)
+const sortOptions: { id: SortField; label: string }[] = [
+  { id: 'name', label: 'Name' },
+  { id: 'size', label: 'Size' },
+  { id: 'date', label: 'Date modified' },
+]
+
+const sortedFiles = computed(() => {
+  const arr = [...files.value]
+  arr.sort((a, b) => {
+    if (a.is_folder !== b.is_folder) return a.is_folder ? -1 : 1
+    let cmp = 0
+    if (sortField.value === 'name') {
+      cmp = a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
+    } else if (sortField.value === 'size') {
+      cmp = (a.size_total || 0) - (b.size_total || 0)
+    } else if (sortField.value === 'date') {
+      cmp = new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()
+    }
+    return sortAsc.value ? cmp : -cmp
+  })
+  return arr
+})
+
+const setSortField = (field: SortField) => {
+  if (sortField.value === field) {
+    sortAsc.value = !sortAsc.value
+  } else {
+    sortField.value = field
+    sortAsc.value = true
+  }
+  showSortMenu.value = false
+}
+
 onMounted(() => {
   if (import.meta.client) {
     const saved = localStorage.getItem('viewMode')
     if (saved && viewModes.find(v => v.id === saved)) {
       viewMode.value = saved
     }
+    const savedSort = localStorage.getItem('sortField')
+    const savedAsc = localStorage.getItem('sortAsc')
+    if (savedSort) sortField.value = savedSort as SortField
+    if (savedAsc !== null) sortAsc.value = savedAsc === 'true'
+  }
+})
+
+watch([sortField, sortAsc], () => {
+  if (import.meta.client) {
+    localStorage.setItem('sortField', sortField.value)
+    localStorage.setItem('sortAsc', String(sortAsc.value))
   }
 })
 
@@ -713,6 +777,7 @@ const loadFiles = async () => {
   try {
     const params = currentFolder.value ? `?parent_id=${currentFolder.value}` : ''
     files.value = (await apiFetch(`/api/files${params}`)) as any[]
+    reconcileUploadStatuses()
   } catch {
     files.value = []
   } finally {
@@ -949,33 +1014,42 @@ const uploadFile = (file: File) => {
 const pollUploadProgress = async (idx: number, fileId: number) => {
   const token = localStorage.getItem('token')
   const apiBase = useRuntimeConfig().public.apiBase
+  let consecutiveErrors = 0
+  const maxConsecutiveErrors = 5
 
   const poll = async (): Promise<boolean> => {
     try {
       const resp = await fetch(`${apiBase}/api/files/${fileId}/progress`, {
         headers: { Authorization: `Bearer ${token}` }
       })
-      if (!resp.ok) return false
+      if (!resp.ok) {
+        consecutiveErrors++
+        if (consecutiveErrors >= maxConsecutiveErrors) {
+          return await fallbackCheckViaFileList(idx, fileId)
+        }
+        return false
+      }
+      consecutiveErrors = 0
       const data = await resp.json()
 
+      if (data.status === 'queued' || data.status === 'uploading') {
+        uploads.value[idx].status = data.status === 'queued' ? 'queued' : 'uploading'
+        return false
+      }
       if (data.status === 'active') {
         uploads.value[idx].status = 'done'
-        loadFiles()
         return true
       }
-
       if (data.status === 'error') {
         uploads.value[idx].status = 'error'
         return true
       }
-
-      // Surface intermediate states so UI doesn't look frozen
-      if (data.status === 'queued' || data.status === 'uploading') {
-        uploads.value[idx].status = data.status === 'queued' ? 'queued' : 'uploading'
-      }
-
       return false
     } catch {
+      consecutiveErrors++
+      if (consecutiveErrors >= maxConsecutiveErrors) {
+        return await fallbackCheckViaFileList(idx, fileId)
+      }
       return false
     }
   }
@@ -988,6 +1062,35 @@ const pollUploadProgress = async (idx: number, fileId: number) => {
     }
   }
   uploads.value[idx]._pollTimer = setTimeout(loop, 1000)
+}
+
+const fallbackCheckViaFileList = async (idx: number, fileId: number): Promise<boolean> => {
+  try {
+    const info = await apiFetch(`/api/files/${fileId}/info`) as any
+    if (info?.status === 'active') {
+      uploads.value[idx].status = 'done'
+      return true
+    }
+    if (info?.status === 'error') {
+      uploads.value[idx].status = 'error'
+      return true
+    }
+  } catch {
+    uploads.value[idx].status = 'error'
+    return true
+  }
+  return false
+}
+
+const reconcileUploadStatuses = () => {
+  for (const u of uploads.value) {
+    if (u._fileId && (u.status === 'uploading' || u.status === 'queued')) {
+      const match = files.value.find(f => f.id === u._fileId)
+      if (match) {
+        u.status = 'done'
+      }
+    }
+  }
 }
 
 const handleUpload = (e: Event) => {
@@ -1026,17 +1129,18 @@ onMounted(async () => {
   if (import.meta.client) {
     if (!localStorage.getItem('token')) { navigateTo('/login'); return }
     document.addEventListener('click', (e) => {
-      if (showViewMenu.value) {
-        const target = e.target as HTMLElement
-        if (!target.closest('.view-toggle-wrapper')) {
-          showViewMenu.value = false
-        }
+      const target = e.target as HTMLElement
+      if (showViewMenu.value && !target.closest('.view-toggle-wrapper')) {
+        showViewMenu.value = false
+      }
+      if (showSortMenu.value && !target.closest('.sort-dropdown-wrapper')) {
+        showSortMenu.value = false
       }
     })
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && selectMode.value) {
         selectMode.value = false
-        for (const key in selectedFiles) delete selectedFiles[key as any]
+        clearSelection()
       }
     })
   }
@@ -1546,7 +1650,8 @@ onMounted(async () => {
   background-color: var(--color-surface-1);
 }
 
-.view-toggle-wrapper {
+.view-toggle-wrapper,
+.sort-dropdown-wrapper {
   position: relative;
 }
 

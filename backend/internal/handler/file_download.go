@@ -16,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/routestorage/backend/internal/middleware"
 	"github.com/routestorage/backend/internal/service"
+	redisPkg "github.com/routestorage/backend/pkg/redis"
 )
 
 type downloadChunkInfo struct {
@@ -416,6 +417,17 @@ func (h *FileHandler) Thumbnail(c *gin.Context) {
 		return
 	}
 
+	// Check Redis cache first
+	cacheKey := "thumb:" + driveFileID
+	if redisPkg.Client != nil {
+		if cached, err := redisPkg.Client.Get(c.Request.Context(), cacheKey).Bytes(); err == nil && len(cached) > 0 {
+			c.Header("Content-Type", mimeType)
+			c.Header("Cache-Control", "public, max-age=86400")
+			c.Data(http.StatusOK, mimeType, cached)
+			return
+		}
+	}
+
 	accessToken, err := service.GetAccessTokenForAccount(h.DB, accountID)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "drive access unavailable"})
@@ -437,10 +449,21 @@ func (h *FileHandler) Thumbnail(c *gin.Context) {
 	}
 	defer resp.Body.Close()
 
+	// Thumbnails are small (KB range) — buffering here is fine
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read thumbnail"})
+		return
+	}
+
+	// Cache in Redis for 24 hours
+	if redisPkg.Client != nil {
+		redisPkg.Client.Set(c.Request.Context(), cacheKey, bodyBytes, 24*time.Hour)
+	}
+
 	c.Header("Content-Type", mimeType)
 	c.Header("Cache-Control", "public, max-age=86400")
-	c.Status(http.StatusOK)
-	io.Copy(c.Writer, resp.Body)
+	c.Data(http.StatusOK, mimeType, bodyBytes)
 }
 
 func (h *FileHandler) DownloadProgress(c *gin.Context) {

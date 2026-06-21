@@ -56,7 +56,7 @@ const formatDate = (dateStr: string) => {
     <div class="file-col-name">
       <div class="file-icon" :class="file.is_folder ? 'file-icon-folder' : `file-type-${isImage(file) ? 'image' : 'file'}`">
         <template v-if="file.is_folder"><Folder :size="16" /></template>
-        <template v-else-if="isImage(file)"><img :src="thumbnailUrl(file.id)" class="file-thumb-xs" @error="(e: any) => e.target.style.display='none'" crossorigin="anonymous" /></template>
+        <template v-else-if="isImage(file)"><img :src="thumbnailUrl(file.id)" loading="lazy" class="file-thumb-xs" @error="(e: any) => e.target.style.display='none'" crossorigin="anonymous" /></template>
         <template v-else><File :size="16" /></template>
       </div>
       <div class="file-name-block">
