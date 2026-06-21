@@ -32,21 +32,20 @@
         </button>
       </div>
 
-      <Transition name="menu">
-        <div v-if="selectMode && selectedFiles.size > 0" class="select-bar">
-          <span class="select-count">{{ selectedFiles.size }} selected</span>
-          <div class="select-actions">
-            <button class="btn-secondary btn-sm" @click="selectAll">
-              <Check :size="14" />
-              <span>{{ allSelected ? 'Deselect All' : 'Select All' }}</span>
-            </button>
-            <button class="btn-danger btn-sm" @click="deleteSelected">
-              <Trash2 :size="14" />
-              <span>Delete</span>
-            </button>
-          </div>
+      <div v-if="selectMode" class="select-bar">
+        <div class="select-bar-left">
+          <button class="select-all-btn" @click="selectAll">
+            <component :is="allSelected ? CheckSquare : Square" :size="16" />
+          </button>
+          <span class="select-count">{{ selectedFiles.size }} of {{ files.length }} selected</span>
         </div>
-      </Transition>
+        <div class="select-actions">
+          <button class="btn-danger btn-sm" @click="deleteSelected" :disabled="selectedFiles.size === 0">
+            <Trash2 :size="14" />
+            <span>Delete{{ selectedFiles.size > 0 ? ` (${selectedFiles.size})` : '' }}</span>
+          </button>
+        </div>
+      </div>
 
       <div v-if="showNewFolder" class="card" style="margin-bottom: 1rem; padding: 1rem 1.25rem;">
         <div style="display: flex; gap: 0.75rem; align-items: flex-end;">
@@ -82,7 +81,9 @@
             <!-- Details view -->
             <div v-if="viewMode === 'details'">
               <div class="file-list-header">
-                <span v-if="selectMode" class="file-col-check"></span>
+                <div v-if="selectMode" class="file-col-check" @click="selectAll">
+                  <component :is="allSelected ? CheckSquare : Square" :size="16" class="select-icon" />
+                </div>
                 <span class="file-col-name">Name</span>
                 <span class="file-col-size">Size</span>
                 <span class="file-col-actions"></span>
@@ -1057,6 +1058,12 @@ onMounted(async () => {
         }
       }
     })
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && selectMode.value) {
+        selectMode.value = false
+        selectedFiles.value.clear()
+      }
+    })
   }
   await fetchPermissions()
   if (!can('nav.explorer')) { navigateTo('/'); return }
@@ -1292,15 +1299,40 @@ onMounted(async () => {
   margin-bottom: 0.75rem;
 }
 
+.select-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.select-all-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+}
+
+.select-all-btn:hover {
+  color: var(--color-brand-500);
+}
+
 .select-count {
   font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--color-brand-500);
+  font-weight: 500;
+  color: var(--color-text-primary);
 }
 
 .select-actions {
   display: flex;
   gap: 0.5rem;
+}
+
+.btn-sm:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .btn-sm {
