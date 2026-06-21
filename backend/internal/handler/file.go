@@ -145,19 +145,17 @@ func (h *FileHandler) UploadProgress(c *gin.Context) {
 	id := c.Param("id")
 
 	var status string
-	var progress int
 	err := h.DB.QueryRow(
-		"SELECT status, upload_progress FROM files WHERE id = ? AND user_id = ?",
+		"SELECT status FROM files WHERE id = ? AND user_id = ?",
 		id, userID,
-	).Scan(&status, &progress)
+	).Scan(&status)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"status":   status,
-		"progress": progress,
+		"status": status,
 	})
 }
 

@@ -276,7 +276,7 @@
             <div style="display: flex; align-items: center; gap: 0.5rem;">
               <Upload :size="14" style="color: var(--color-brand-500);" />
               <span style="font-size: 0.8125rem; font-weight: 600; color: var(--color-text-primary);">
-                {{ uploadingCount ? `Uploading ${uploadingCount} file${uploadingCount > 1 ? 's' : ''}...` : `Uploaded ${completedCount} file${completedCount > 1 ? 's' : ''}` }}
+                {{ uploadingCount ? `Uploading ${completedCount}/${totalCount} files...` : `Uploaded ${completedCount} file${completedCount > 1 ? 's' : ''}` }}
               </span>
             </div>
             <button class="upload-panel-close" @click="clearCompletedUploads" v-if="!uploadingCount">
@@ -291,7 +291,7 @@
               <div class="upload-item-info">
                 <div class="upload-item-name">{{ upload.name }}</div>
                 <div class="upload-item-meta">
-                  <span v-if="upload.status === 'uploading'">{{ upload.percent }}% - {{ formatSize(upload.loaded) }} of {{ formatSize(upload.total) }}</span>
+                  <span v-if="upload.status === 'uploading'">Uploading...</span>
                   <span v-else-if="upload.status === 'done'" style="color: var(--color-success);">Done</span>
                   <span v-else-if="upload.status === 'error'" style="color: var(--color-danger);">Failed</span>
                   <span v-else-if="upload.status === 'cancelled'" style="color: var(--color-text-muted);">Cancelled</span>
@@ -302,7 +302,7 @@
                     <div
                       class="upload-item-progress-fill"
                       :class="{ 'fill-error': upload.status === 'error' || upload.status === 'cancelled', 'fill-done': upload.status === 'done' }"
-                      :style="{ width: upload.percent + '%' }"
+                      :style="{ width: upload.status === 'done' || upload.status === 'error' || upload.status === 'cancelled' ? '100%' : upload.status === 'uploading' ? '100%' : '0%' }"
                     ></div>
                   </div>
                 </div>
@@ -632,9 +632,6 @@ interface UploadItem {
   id: string
   name: string
   status: 'queued' | 'uploading' | 'done' | 'error'
-  percent: number
-  loaded: number
-  total: number
 }
 
 const uploads = ref<UploadItem[]>([])
@@ -643,6 +640,7 @@ const pendingFiles = new Set<string>()
 
 const uploadingCount = computed(() => uploads.value.filter(u => u.status === 'uploading' || u.status === 'queued').length)
 const completedCount = computed(() => uploads.value.filter(u => u.status === 'done').length)
+const totalCount = computed(() => uploads.value.length)
 
 const formatSize = (bytes: number) => {
   if (!bytes) return '0 B'
@@ -866,9 +864,6 @@ const uploadFile = (file: File) => {
     id,
     name: file.name,
     status: 'uploading',
-    percent: 0,
-    loaded: 0,
-    total: file.size,
     _xhr: null as XMLHttpRequest | null,
     _aborted: false,
     _pollTimer: null as ReturnType<typeof setTimeout> | null,
@@ -884,22 +879,13 @@ const uploadFile = (file: File) => {
   const xhr = new XMLHttpRequest()
   uploads.value[idx]._xhr = xhr
 
-  xhr.upload.addEventListener('progress', (e) => {
-    if (e.lengthComputable && e.total > 0) {
-      const pct = Math.round((e.loaded / e.total) * 100)
-      uploads.value[idx].percent = Math.min(pct, 99)
-      uploads.value[idx].loaded = e.loaded
-      uploads.value[idx].total = e.total
-    }
-  })
+  xhr.upload.addEventListener('progress', () => {})  // no-op: progress tracked by file count
 
   xhr.addEventListener('load', () => {
     if (xhr.status >= 200 && xhr.status < 300) {
       const resp = JSON.parse(xhr.responseText)
       const fileId = resp.id
       uploads.value[idx]._fileId = fileId
-      uploads.value[idx].loaded = uploads.value[idx].total
-      uploads.value[idx].percent = 99
       pollUploadProgress(idx, fileId)
     } else {
       pendingFiles.delete(key)
@@ -920,7 +906,6 @@ const uploadFile = (file: File) => {
 const pollUploadProgress = async (idx: number, fileId: number) => {
   const token = localStorage.getItem('token')
   const apiBase = useRuntimeConfig().public.apiBase
-  let lastServerPercent = 0
 
   const poll = async (): Promise<boolean> => {
     try {
@@ -931,8 +916,6 @@ const pollUploadProgress = async (idx: number, fileId: number) => {
       const data = await resp.json()
 
       if (data.status === 'active') {
-        uploads.value[idx].percent = 100
-        uploads.value[idx].loaded = uploads.value[idx].total
         uploads.value[idx].status = 'done'
         loadFiles()
         return true
@@ -941,13 +924,6 @@ const pollUploadProgress = async (idx: number, fileId: number) => {
       if (data.status === 'error') {
         uploads.value[idx].status = 'error'
         return true
-      }
-
-      const serverPercent = data.progress || 0
-      if (serverPercent > lastServerPercent) {
-        lastServerPercent = serverPercent
-        uploads.value[idx].percent = Math.min(serverPercent, 99)
-        uploads.value[idx].loaded = Math.round((serverPercent / 100) * uploads.value[idx].total)
       }
 
       return false
@@ -960,10 +936,10 @@ const pollUploadProgress = async (idx: number, fileId: number) => {
     if (uploads.value[idx]?._aborted) return
     const done = await poll()
     if (!done && !uploads.value[idx]?._aborted) {
-      uploads.value[idx]._pollTimer = setTimeout(loop, 500)
+      uploads.value[idx]._pollTimer = setTimeout(loop, 1000)
     }
   }
-  uploads.value[idx]._pollTimer = setTimeout(loop, 500)
+  uploads.value[idx]._pollTimer = setTimeout(loop, 1000)
 }
 
 const handleUpload = (e: Event) => {

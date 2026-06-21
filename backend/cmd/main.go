@@ -1,9 +1,13 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/routestorage/backend/internal/handler"
@@ -17,6 +21,9 @@ func main() {
 
 	repository.InitDB()
 	redispkg.InitRedis()
+
+	// Global concurrency limiter — max 10 concurrent chunk operations (uploads/downloads)
+	handler.InitChunkSemaphore(10)
 
 	r := gin.Default()
 
@@ -116,8 +123,33 @@ func main() {
 	}
 
 	port := getEnv("PORT", "8080")
-	log.Printf("Server starting on :%s", port)
-	r.Run(":" + port)
+	srv := &http.Server{
+		Addr:         ":" + port,
+		Handler:      r,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 0, // no timeout — uploads/downloads stream indefinitely
+		IdleTimeout:  120 * time.Second,
+	}
+
+	go func() {
+		log.Printf("Server starting on :%s", port)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("listen error: %v", err)
+		}
+	}()
+
+	// Graceful shutdown — wait for in-flight requests to finish
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	log.Println("Shutting down server...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Printf("Server forced to shutdown: %v", err)
+	}
+	log.Println("Server exited")
 }
 
 func getEnv(key, fallback string) string {

@@ -121,6 +121,14 @@ func (h *FileHandler) DownloadByName(c *gin.Context) {
 		for i, ch := range chunks {
 			go func(idx int, ci downloadChunkInfo) {
 				defer close(results[idx].done)
+				defer func() {
+					if r := recover(); r != nil {
+						log.Printf("Chunk download panic: %v", r)
+						results[idx].err = fmt.Errorf("panic: %v", r)
+					}
+				}()
+				acquireChunkSlot()
+				defer releaseChunkSlot()
 
 				accessToken, err := service.GetAccessTokenForAccount(h.DB, ci.AccountID)
 				if err != nil {
@@ -136,7 +144,7 @@ func (h *FileHandler) DownloadByName(c *gin.Context) {
 				}
 				req.Header.Set("Authorization", "Bearer "+accessToken)
 
-				resp, err := http.DefaultClient.Do(req)
+				resp, err := HTTPClient.Do(req)
 				if err != nil {
 					results[idx].err = fmt.Errorf("drive download failed chunk %d: %w", ci.Index, err)
 					return
@@ -281,10 +289,15 @@ func (h *FileHandler) processDownload(sess *downloadSession, chunks []downloadCh
 		wg.Add(1)
 		go func(idx int, ci downloadChunkInfo) {
 			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("processDownload chunk panic: %v", r)
+				}
 				sess.ChunksDone++
 				sess.Progress = int(float64(sess.ChunksDone) / float64(sess.ChunksTotal) * 100)
 				wg.Done()
 			}()
+			acquireChunkSlot()
+			defer releaseChunkSlot()
 
 			accessToken, err := service.GetAccessTokenForAccount(h.DB, ci.AccountID)
 			if err != nil {
@@ -300,7 +313,7 @@ func (h *FileHandler) processDownload(sess *downloadSession, chunks []downloadCh
 			}
 			req.Header.Set("Authorization", "Bearer "+accessToken)
 
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := HTTPClient.Do(req)
 			if err != nil {
 				results[idx] = chunkResult{Index: idx, Error: fmt.Errorf("drive download failed: %w", err)}
 				return
@@ -412,7 +425,7 @@ func (h *FileHandler) Thumbnail(c *gin.Context) {
 	}
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := HTTPClient.Do(req)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch thumbnail"})
 		return
@@ -511,6 +524,14 @@ func (h *FileHandler) DownloadFile(c *gin.Context) {
 	for i, ch := range chunks {
 		go func(idx int, ci downloadChunkInfo) {
 			defer close(results[idx].done)
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("DownloadFile chunk panic: %v", r)
+					results[idx].err = fmt.Errorf("panic: %v", r)
+				}
+			}()
+			acquireChunkSlot()
+			defer releaseChunkSlot()
 
 			accessToken, err := service.GetAccessTokenForAccount(h.DB, ci.AccountID)
 			if err != nil {
@@ -526,7 +547,7 @@ func (h *FileHandler) DownloadFile(c *gin.Context) {
 			}
 			req.Header.Set("Authorization", "Bearer "+accessToken)
 
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := HTTPClient.Do(req)
 			if err != nil {
 				results[idx].err = fmt.Errorf("drive download failed chunk %d: %w", ci.Index, err)
 				return

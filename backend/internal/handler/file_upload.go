@@ -3,7 +3,6 @@ package handler
 import (
 	"bytes"
 	"crypto/sha256"
-	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -38,38 +37,6 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
-type progressReader struct {
-	r            io.Reader
-	total        int64
-	read         int64
-	fileID       int64
-	db           *sql.DB
-	lastDBUpdate int64
-}
-
-func (pr *progressReader) Read(p []byte) (int, error) {
-	n, err := pr.r.Read(p)
-	pr.read += int64(n)
-	if n > 0 {
-		step := int64(2 * 1024 * 1024)
-		if pr.total < 10*1024*1024 {
-			step = 256 * 1024
-		}
-		if pr.read-pr.lastDBUpdate >= step || err == io.EOF {
-			pr.lastDBUpdate = pr.read
-			pct := int(float64(pr.read) / float64(pr.total) * 99)
-			if pct > 99 {
-				pct = 99
-			}
-			if pct < 0 {
-				pct = 0
-			}
-			pr.db.Exec("UPDATE files SET upload_progress = ? WHERE id = ?", pct, pr.fileID)
-		}
-	}
-	return n, err
-}
-
 func (h *FileHandler) UploadFile(c *gin.Context) {
 	userID := c.GetInt64("user_id")
 	file, header, err := c.Request.FormFile("file")
@@ -102,7 +69,7 @@ func (h *FileHandler) UploadFile(c *gin.Context) {
 	}
 
 	result, err := h.DB.Exec(
-		"INSERT INTO files (user_id, name, mime_type, size_total, status, upload_progress, parent_id, is_folder) VALUES (?, ?, ?, ?, 'uploading', 0, ?, FALSE)",
+		"INSERT INTO files (user_id, name, mime_type, size_total, status, parent_id, is_folder) VALUES (?, ?, ?, ?, 'uploading', ?, FALSE)",
 		userID, header.Filename, header.Header.Get("Content-Type"), written, parentID,
 	)
 	if err != nil {
@@ -119,7 +86,15 @@ func (h *FileHandler) UploadFile(c *gin.Context) {
 		"status": "uploading",
 	})
 
-	go h.processUpload(userID, fileID, header.Filename, tmpFile.Name(), written)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("Upload panic for file %d: %v", fileID, r)
+				h.DB.Exec("UPDATE files SET status = 'error' WHERE id = ?", fileID)
+			}
+		}()
+		h.processUpload(userID, fileID, header.Filename, tmpFile.Name(), written)
+	}()
 }
 
 type driveAssignment struct {
@@ -140,7 +115,7 @@ func (h *FileHandler) processUpload(userID, fileID int64, filename, tmpPath stri
 
 	accounts, err := service.GetAllDriveAccounts(h.DB, userID)
 	if err != nil || len(accounts) == 0 {
-		h.DB.Exec("UPDATE files SET status = 'error', upload_progress = 0 WHERE id = ?", fileID)
+		h.DB.Exec("UPDATE files SET status = 'error' WHERE id = ?", fileID)
 		return
 	}
 
@@ -161,7 +136,7 @@ func (h *FileHandler) processUpload(userID, fileID int64, filename, tmpPath stri
 
 	f, err := os.Open(tmpPath)
 	if err != nil {
-		h.DB.Exec("UPDATE files SET status = 'error', upload_progress = 0 WHERE id = ?", fileID)
+		h.DB.Exec("UPDATE files SET status = 'error' WHERE id = ?", fileID)
 		return
 	}
 	defer f.Close()
@@ -174,7 +149,7 @@ func (h *FileHandler) processUpload(userID, fileID int64, filename, tmpPath stri
 		n, readErr := f.Read(buf)
 		if n == 0 {
 			if readErr != nil && readErr != io.EOF {
-				h.DB.Exec("UPDATE files SET status = 'error', upload_progress = 0 WHERE id = ?", fileID)
+				h.DB.Exec("UPDATE files SET status = 'error' WHERE id = ?", fileID)
 			}
 			break
 		}
@@ -184,6 +159,14 @@ func (h *FileHandler) processUpload(userID, fileID int64, filename, tmpPath stri
 		wg.Add(1)
 		go func(idx int, data []byte, assign driveAssignment) {
 			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("Chunk upload panic for file %d chunk %d: %v", fileID, idx, r)
+					results[idx] = chunkResult{index: idx, err: fmt.Errorf("panic: %v", r)}
+				}
+			}()
+			acquireChunkSlot()
+			defer releaseChunkSlot()
 			results[idx] = h.uploadChunkToFile(fileID, filename, data, idx, assign)
 		}(i, chunkData, assignment)
 	}
@@ -206,16 +189,16 @@ func (h *FileHandler) processUpload(userID, fileID int64, filename, tmpPath stri
 					deleteURL := fmt.Sprintf("https://www.googleapis.com/drive/v3/files/%s", r.driveFileID)
 					req, _ := http.NewRequest("DELETE", deleteURL, nil)
 					req.Header.Set("Authorization", "Bearer "+token)
-					http.DefaultClient.Do(req)
+					HTTPClient.Do(req)
 				}
 			}
 		}
 		h.DB.Exec("DELETE FROM file_chunks WHERE file_id = ?", fileID)
-		h.DB.Exec("UPDATE files SET status = 'error', upload_progress = 0 WHERE id = ?", fileID)
+		h.DB.Exec("UPDATE files SET status = 'error' WHERE id = ?", fileID)
 		return
 	}
 
-	h.DB.Exec("UPDATE files SET status = 'active', upload_progress = 100 WHERE id = ?", fileID)
+	h.DB.Exec("UPDATE files SET status = 'active' WHERE id = ?", fileID)
 }
 
 func (h *FileHandler) uploadChunkToFile(fileID int64, filename string, data []byte, index int, assign driveAssignment) chunkResult {
@@ -246,22 +229,15 @@ func (h *FileHandler) uploadChunkToFile(fileID int64, filename string, data []by
 	part.Write(data)
 	writer.Close()
 
-	totalBodySize := int64(body.Len())
-
 	uploadURL := "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart"
-	req, err := http.NewRequest("POST", uploadURL, &progressReader{
-		r:      body,
-		total:  totalBodySize,
-		fileID: fileID,
-		db:     h.DB,
-	})
+	req, err := http.NewRequest("POST", uploadURL, body)
 	if err != nil {
 		return chunkResult{index: index, err: err}
 	}
 	req.Header.Set("Authorization", "Bearer "+assign.token)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := HTTPClient.Do(req)
 	if err != nil {
 		return chunkResult{index: index, err: fmt.Errorf("drive upload failed: %w", err)}
 	}
