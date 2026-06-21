@@ -83,7 +83,7 @@ func (h *FileHandler) UploadFile(c *gin.Context) {
 		"id":     fileID,
 		"name":   header.Filename,
 		"size":   written,
-		"status": "uploading",
+		"status": "queued",
 	})
 
 	go func() {

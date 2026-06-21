@@ -34,15 +34,18 @@
 
       <div v-if="selectMode" class="select-bar">
         <div class="select-bar-left">
-          <button class="select-all-btn" @click="selectAll">
+          <button class="select-all-btn" @click="selectAll" :title="allSelected ? 'Deselect all' : 'Select all'">
             <component :is="allSelected ? CheckSquare : Square" :size="16" />
           </button>
-          <span class="select-count">{{ selectedFiles.size }} of {{ files.length }} selected</span>
+          <span class="select-count">{{ selectedCount }} of {{ files.length }} selected</span>
+          <button class="select-all-text-btn" @click="selectAll">
+            {{ allSelected ? 'Deselect all' : 'Select all' }}
+          </button>
         </div>
         <div class="select-actions">
-          <button class="btn-danger btn-sm" @click="deleteSelected" :disabled="selectedFiles.size === 0">
+          <button class="btn-danger btn-sm" @click="deleteSelected" :disabled="selectedCount === 0">
             <Trash2 :size="14" />
-            <span>Delete{{ selectedFiles.size > 0 ? ` (${selectedFiles.size})` : '' }}</span>
+            <span>Delete{{ selectedCount > 0 ? ` (${selectedCount})` : '' }}</span>
           </button>
         </div>
       </div>
@@ -89,9 +92,9 @@
                 <span class="file-col-actions"></span>
               </div>
               <div class="file-list">
-                <div v-for="file in files" :key="file.id" class="file-row" :class="{ 'file-selected': selectedFiles.has(file.id) }" @click="selectMode ? toggleFileSelect(file.id) : (isImage(file) ? openLightbox(file) : (file.is_folder ? navigateToFolder(file.id) : null))">
+                <div v-for="file in files" :key="file.id" class="file-row" :class="{ 'file-selected': isSelected(file.id) }" @click="selectMode ? toggleFileSelect(file.id) : (isImage(file) ? openLightbox(file) : (file.is_folder ? navigateToFolder(file.id) : null))">
                   <div v-if="selectMode" class="file-col-check" @click.stop="toggleFileSelect(file.id)">
-                    <component :is="selectedFiles.has(file.id) ? CheckSquare : Square" :size="16" class="select-icon" />
+                    <component :is="isSelected(file.id) ? CheckSquare : Square" :size="16" class="select-icon" />
                   </div>
                   <div class="file-col-name">
                     <div class="file-icon" :class="file.is_folder ? 'file-icon-folder' : `file-type-${isImage(file) ? 'image' : 'file'}`">
@@ -116,9 +119,9 @@
 
             <!-- Large icons -->
             <div v-else-if="viewMode === 'large'" class="file-grid-large">
-              <div v-for="file in files" :key="file.id" class="file-card-large" :class="{ 'file-selected': selectedFiles.has(file.id) }" @dblclick="selectMode ? toggleFileSelect(file.id) : (file.is_folder ? navigateToFolder(file.id) : null)">
+              <div v-for="file in files" :key="file.id" class="file-card-large" :class="{ 'file-selected': isSelected(file.id) }" @dblclick="selectMode ? toggleFileSelect(file.id) : (file.is_folder ? navigateToFolder(file.id) : null)">
                 <div v-if="selectMode" class="file-card-check" @click.stop="toggleFileSelect(file.id)">
-                  <component :is="selectedFiles.has(file.id) ? CheckSquare : Square" :size="16" class="select-icon" />
+                  <component :is="isSelected(file.id) ? CheckSquare : Square" :size="16" class="select-icon" />
                 </div>
                 <div class="file-card-icon-large" :class="file.is_folder ? 'file-icon-folder' : `file-type-${isImage(file) ? 'image' : isVideo(file) ? 'video' : isAudio(file) ? 'audio' : isDoc(file) ? 'doc' : 'file'}`" @click="selectMode ? toggleFileSelect(file.id) : (!file.is_folder && isImage(file) ? openLightbox(file) : null)">
                   <template v-if="file.is_folder">
@@ -143,9 +146,9 @@
 
             <!-- Medium icons -->
             <div v-else-if="viewMode === 'medium'" class="file-grid-medium">
-              <div v-for="file in files" :key="file.id" class="file-card-medium" :class="{ 'file-selected': selectedFiles.has(file.id) }" @dblclick="selectMode ? toggleFileSelect(file.id) : (file.is_folder ? navigateToFolder(file.id) : null)">
+              <div v-for="file in files" :key="file.id" class="file-card-medium" :class="{ 'file-selected': isSelected(file.id) }" @dblclick="selectMode ? toggleFileSelect(file.id) : (file.is_folder ? navigateToFolder(file.id) : null)">
                 <div v-if="selectMode" class="file-card-check" @click.stop="toggleFileSelect(file.id)">
-                  <component :is="selectedFiles.has(file.id) ? CheckSquare : Square" :size="14" class="select-icon" />
+                  <component :is="isSelected(file.id) ? CheckSquare : Square" :size="14" class="select-icon" />
                 </div>
                 <div class="file-card-icon-medium" :class="file.is_folder ? 'file-icon-folder' : `file-type-${isImage(file) ? 'image' : isVideo(file) ? 'video' : isAudio(file) ? 'audio' : isDoc(file) ? 'doc' : 'file'}`" @click="selectMode ? toggleFileSelect(file.id) : (!file.is_folder && isImage(file) ? openLightbox(file) : null)">
                   <template v-if="file.is_folder">
@@ -170,9 +173,9 @@
 
             <!-- Small icons -->
             <div v-else-if="viewMode === 'small'" class="file-grid-small">
-              <div v-for="file in files" :key="file.id" class="file-card-small" :class="{ 'file-selected': selectedFiles.has(file.id) }" @click="selectMode ? toggleFileSelect(file.id) : (isImage(file) ? openLightbox(file) : (file.is_folder ? navigateToFolder(file.id) : null))">
+              <div v-for="file in files" :key="file.id" class="file-card-small" :class="{ 'file-selected': isSelected(file.id) }" @click="selectMode ? toggleFileSelect(file.id) : (isImage(file) ? openLightbox(file) : (file.is_folder ? navigateToFolder(file.id) : null))">
                 <div v-if="selectMode" class="file-card-check-sm" @click.stop="toggleFileSelect(file.id)">
-                  <component :is="selectedFiles.has(file.id) ? CheckSquare : Square" :size="12" class="select-icon" />
+                  <component :is="isSelected(file.id) ? CheckSquare : Square" :size="12" class="select-icon" />
                 </div>
                 <div class="file-card-icon-sm" :class="file.is_folder ? 'file-icon-folder' : `file-type-${isImage(file) ? 'image' : 'file'}`">
                   <template v-if="file.is_folder">
@@ -433,7 +436,9 @@ const shareLoading = ref(false)
 const copiedLinkId = ref<number | null>(null)
 const contextMenu = ref<{ show: boolean; file: any; x: number; y: number }>({ show: false, file: null, x: 0, y: 0 })
 const selectMode = ref(false)
-const selectedFiles = ref<Set<number>>(new Set())
+const selectedFiles = reactive<Record<number, boolean>>({})
+const isSelected = (fileId: number) => !!selectedFiles[fileId]
+const selectedCount = computed(() => Object.keys(selectedFiles).length)
 const viewModes = [
   { id: 'details', label: 'Details', icon: LayoutGrid },
   { id: 'large', label: 'Large icons', icon: LayoutGrid },
@@ -683,34 +688,35 @@ const completedCount = computed(() => uploads.value.filter(u => u.status === 'do
 const totalCount = computed(() => uploads.value.length)
 
 // Select mode
-const allSelected = computed(() => files.value.length > 0 && selectedFiles.value.size === files.value.length)
+const allSelected = computed(() => files.value.length > 0 && files.value.every(f => selectedFiles[f.id]))
 const toggleSelectMode = () => {
   selectMode.value = !selectMode.value
-  if (!selectMode.value) selectedFiles.value.clear()
+  if (!selectMode.value) {
+    for (const key in selectedFiles) delete selectedFiles[key as any]
+  }
 }
 const toggleFileSelect = (fileId: number) => {
-  if (selectedFiles.value.has(fileId)) {
-    selectedFiles.value.delete(fileId)
+  if (selectedFiles[fileId]) {
+    delete selectedFiles[fileId]
   } else {
-    selectedFiles.value.add(fileId)
+    selectedFiles[fileId] = true
   }
-  selectedFiles.value = new Set(selectedFiles.value)
 }
 const selectAll = () => {
   if (allSelected.value) {
-    selectedFiles.value.clear()
+    for (const key in selectedFiles) delete selectedFiles[key as any]
   } else {
-    selectedFiles.value = new Set(files.value.map(f => f.id))
+    for (const f of files.value) selectedFiles[f.id] = true
   }
 }
 const deleteSelected = async () => {
-  const ids = Array.from(selectedFiles.value)
+  const ids = Object.keys(selectedFiles).map(Number)
   if (!ids.length) return
   if (!confirm(`Delete ${ids.length} item${ids.length > 1 ? 's' : ''}?`)) return
   for (const id of ids) {
     try { await apiFetch(`/api/files/${id}`, { method: 'DELETE' }) } catch {}
   }
-  selectedFiles.value.clear()
+  for (const key in selectedFiles) delete selectedFiles[key as any]
   selectMode.value = false
   loadFiles()
 }
@@ -999,6 +1005,11 @@ const pollUploadProgress = async (idx: number, fileId: number) => {
         return true
       }
 
+      // Surface intermediate states so UI doesn't look frozen
+      if (data.status === 'queued' || data.status === 'uploading') {
+        uploads.value[idx].status = data.status === 'queued' ? 'queued' : 'uploading'
+      }
+
       return false
     } catch {
       return false
@@ -1061,7 +1072,7 @@ onMounted(async () => {
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && selectMode.value) {
         selectMode.value = false
-        selectedFiles.value.clear()
+        for (const key in selectedFiles) delete selectedFiles[key as any]
       }
     })
   }
@@ -1317,6 +1328,22 @@ onMounted(async () => {
 
 .select-all-btn:hover {
   color: var(--color-brand-500);
+}
+
+.select-all-text-btn {
+  background: none;
+  border: none;
+  color: var(--color-brand-600);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  transition: background-color 0.1s ease;
+}
+
+.select-all-text-btn:hover {
+  background-color: var(--color-surface-1);
 }
 
 .select-count {
