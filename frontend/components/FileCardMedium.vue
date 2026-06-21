@@ -57,3 +57,144 @@ const thumbnailUrl = (fileId: number) => {
     <span class="file-card-name-sm" :class="{ 'folder-name': file.is_folder }" @click="file.is_folder ? emit('open', file) : null">{{ file.name }}</span>
   </div>
 </template>
+
+<style scoped>
+.file-card-medium {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.75rem 0.5rem;
+  border-radius: 0.5rem;
+  cursor: default;
+  transition: background-color 0.1s ease;
+  position: relative;
+}
+
+.file-card-medium:hover {
+  background-color: var(--color-surface-1);
+}
+
+.file-card-medium.file-selected {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: -2px;
+}
+
+.file-card-check {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 2;
+  cursor: pointer;
+  background: var(--color-surface-0);
+  border-radius: 0.25rem;
+  padding: 0.125rem;
+}
+
+.select-icon {
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color 0.1s ease;
+}
+
+.select-icon:hover {
+  color: var(--color-brand-500);
+}
+
+.file-card-icon-medium {
+  width: 5rem;
+  height: 5rem;
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.5rem;
+  overflow: hidden;
+  cursor: pointer;
+  position: relative;
+}
+
+.file-icon-folder {
+  background-color: rgba(76, 110, 245, 0.1);
+  color: var(--color-brand-600);
+}
+
+.file-type-image {
+  background-color: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+}
+
+.file-type-video {
+  background-color: rgba(168, 85, 247, 0.1);
+  color: #a855f7;
+}
+
+.file-type-audio {
+  background-color: rgba(249, 115, 22, 0.1);
+  color: #f97316;
+}
+
+.file-type-doc {
+  background-color: rgba(34, 197, 94, 0.1);
+  color: #22c55e;
+}
+
+.file-type-file {
+  background-color: var(--color-surface-2);
+  color: var(--color-text-muted);
+}
+
+.file-thumb-sm {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.card-menu-btn {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  background-color: rgba(255, 255, 255, 0.85);
+  border: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+  z-index: 2;
+}
+
+.file-card-medium:hover .card-menu-btn {
+  opacity: 1;
+}
+
+.card-menu-btn:hover {
+  background-color: rgba(255, 255, 255, 1);
+  color: var(--color-text-primary);
+}
+
+.file-card-name-sm {
+  font-size: 0.75rem;
+  color: var(--color-text-primary);
+  text-align: center;
+  word-break: break-word;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.folder-name {
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.folder-name:hover {
+  color: var(--color-brand-600);
+}
+</style>
