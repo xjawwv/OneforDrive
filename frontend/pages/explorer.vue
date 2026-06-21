@@ -26,7 +26,27 @@
           <span>Upload</span>
           <input type="file" multiple @change="handleUpload" style="display: none;" />
         </label>
+        <button v-if="files.length" class="btn-secondary" @click="toggleSelectMode" :class="{ 'btn-active': selectMode }">
+          <CheckSquare :size="16" />
+          <span>{{ selectMode ? 'Cancel' : 'Select' }}</span>
+        </button>
       </div>
+
+      <Transition name="menu">
+        <div v-if="selectMode && selectedFiles.size > 0" class="select-bar">
+          <span class="select-count">{{ selectedFiles.size }} selected</span>
+          <div class="select-actions">
+            <button class="btn-secondary btn-sm" @click="selectAll">
+              <Check :size="14" />
+              <span>{{ allSelected ? 'Deselect All' : 'Select All' }}</span>
+            </button>
+            <button class="btn-danger btn-sm" @click="deleteSelected">
+              <Trash2 :size="14" />
+              <span>Delete</span>
+            </button>
+          </div>
+        </div>
+      </Transition>
 
       <div v-if="showNewFolder" class="card" style="margin-bottom: 1rem; padding: 1rem 1.25rem;">
         <div style="display: flex; gap: 0.75rem; align-items: flex-end;">
@@ -62,12 +82,16 @@
             <!-- Details view -->
             <div v-if="viewMode === 'details'">
               <div class="file-list-header">
+                <span v-if="selectMode" class="file-col-check"></span>
                 <span class="file-col-name">Name</span>
                 <span class="file-col-size">Size</span>
                 <span class="file-col-actions"></span>
               </div>
               <div class="file-list">
-                <div v-for="file in files" :key="file.id" class="file-row" @click="isImage(file) ? openLightbox(file) : (file.is_folder ? navigateToFolder(file.id) : null)">
+                <div v-for="file in files" :key="file.id" class="file-row" :class="{ 'file-selected': selectedFiles.has(file.id) }" @click="selectMode ? toggleFileSelect(file.id) : (isImage(file) ? openLightbox(file) : (file.is_folder ? navigateToFolder(file.id) : null))">
+                  <div v-if="selectMode" class="file-col-check" @click.stop="toggleFileSelect(file.id)">
+                    <component :is="selectedFiles.has(file.id) ? CheckSquare : Square" :size="16" class="select-icon" />
+                  </div>
                   <div class="file-col-name">
                     <div class="file-icon" :class="file.is_folder ? 'file-icon-folder' : `file-type-${isImage(file) ? 'image' : 'file'}`">
                       <template v-if="file.is_folder"><Folder :size="16" /></template>
@@ -91,8 +115,11 @@
 
             <!-- Large icons -->
             <div v-else-if="viewMode === 'large'" class="file-grid-large">
-              <div v-for="file in files" :key="file.id" class="file-card-large" @dblclick="file.is_folder ? navigateToFolder(file.id) : null">
-                <div class="file-card-icon-large" :class="file.is_folder ? 'file-icon-folder' : `file-type-${isImage(file) ? 'image' : isVideo(file) ? 'video' : isAudio(file) ? 'audio' : isDoc(file) ? 'doc' : 'file'}`" @click="!file.is_folder && isImage(file) ? openLightbox(file) : null">
+              <div v-for="file in files" :key="file.id" class="file-card-large" :class="{ 'file-selected': selectedFiles.has(file.id) }" @dblclick="selectMode ? toggleFileSelect(file.id) : (file.is_folder ? navigateToFolder(file.id) : null)">
+                <div v-if="selectMode" class="file-card-check" @click.stop="toggleFileSelect(file.id)">
+                  <component :is="selectedFiles.has(file.id) ? CheckSquare : Square" :size="16" class="select-icon" />
+                </div>
+                <div class="file-card-icon-large" :class="file.is_folder ? 'file-icon-folder' : `file-type-${isImage(file) ? 'image' : isVideo(file) ? 'video' : isAudio(file) ? 'audio' : isDoc(file) ? 'doc' : 'file'}`" @click="selectMode ? toggleFileSelect(file.id) : (!file.is_folder && isImage(file) ? openLightbox(file) : null)">
                   <template v-if="file.is_folder">
                     <Folder :size="48" />
                   </template>
@@ -115,8 +142,11 @@
 
             <!-- Medium icons -->
             <div v-else-if="viewMode === 'medium'" class="file-grid-medium">
-              <div v-for="file in files" :key="file.id" class="file-card-medium" @dblclick="file.is_folder ? navigateToFolder(file.id) : null">
-                <div class="file-card-icon-medium" :class="file.is_folder ? 'file-icon-folder' : `file-type-${isImage(file) ? 'image' : isVideo(file) ? 'video' : isAudio(file) ? 'audio' : isDoc(file) ? 'doc' : 'file'}`" @click="!file.is_folder && isImage(file) ? openLightbox(file) : null">
+              <div v-for="file in files" :key="file.id" class="file-card-medium" :class="{ 'file-selected': selectedFiles.has(file.id) }" @dblclick="selectMode ? toggleFileSelect(file.id) : (file.is_folder ? navigateToFolder(file.id) : null)">
+                <div v-if="selectMode" class="file-card-check" @click.stop="toggleFileSelect(file.id)">
+                  <component :is="selectedFiles.has(file.id) ? CheckSquare : Square" :size="14" class="select-icon" />
+                </div>
+                <div class="file-card-icon-medium" :class="file.is_folder ? 'file-icon-folder' : `file-type-${isImage(file) ? 'image' : isVideo(file) ? 'video' : isAudio(file) ? 'audio' : isDoc(file) ? 'doc' : 'file'}`" @click="selectMode ? toggleFileSelect(file.id) : (!file.is_folder && isImage(file) ? openLightbox(file) : null)">
                   <template v-if="file.is_folder">
                     <Folder :size="32" />
                   </template>
@@ -139,7 +169,10 @@
 
             <!-- Small icons -->
             <div v-else-if="viewMode === 'small'" class="file-grid-small">
-              <div v-for="file in files" :key="file.id" class="file-card-small" @click="isImage(file) ? openLightbox(file) : (file.is_folder ? navigateToFolder(file.id) : null)">
+              <div v-for="file in files" :key="file.id" class="file-card-small" :class="{ 'file-selected': selectedFiles.has(file.id) }" @click="selectMode ? toggleFileSelect(file.id) : (isImage(file) ? openLightbox(file) : (file.is_folder ? navigateToFolder(file.id) : null))">
+                <div v-if="selectMode" class="file-card-check-sm" @click.stop="toggleFileSelect(file.id)">
+                  <component :is="selectedFiles.has(file.id) ? CheckSquare : Square" :size="12" class="select-icon" />
+                </div>
                 <div class="file-card-icon-sm" :class="file.is_folder ? 'file-icon-folder' : `file-type-${isImage(file) ? 'image' : 'file'}`">
                   <template v-if="file.is_folder">
                     <Folder :size="14" />
@@ -276,7 +309,7 @@
             <div style="display: flex; align-items: center; gap: 0.5rem;">
               <Upload :size="14" style="color: var(--color-brand-500);" />
               <span style="font-size: 0.8125rem; font-weight: 600; color: var(--color-text-primary);">
-                {{ uploadingCount ? `Uploading ${completedCount}/${totalCount} files...` : `Uploaded ${completedCount} file${completedCount > 1 ? 's' : ''}` }}
+                {{ uploadingCount ? `${completedCount}/${totalCount} files uploaded` : `${totalCount} file${totalCount > 1 ? 's' : ''} uploaded` }}
               </span>
             </div>
             <button class="upload-panel-close" @click="clearCompletedUploads" v-if="!uploadingCount">
@@ -364,7 +397,7 @@
 </template>
 
 <script setup lang="ts">
-import { FolderOpen, FolderPlus, Upload, Folder, File, Trash2, Download, ChevronRight, Home, Loader2, X, LayoutGrid, Grip, Image, Film, Music, FileText, Minus, Plus, Search, Share2, Copy, Check, MoreVertical } from 'lucide-vue-next'
+import { FolderOpen, FolderPlus, Upload, Folder, File, Trash2, Download, ChevronRight, Home, Loader2, X, LayoutGrid, Grip, Image, Film, Music, FileText, Minus, Plus, Search, Share2, Copy, Check, MoreVertical, Square, CheckSquare } from 'lucide-vue-next'
 
 const { apiFetch } = useApi()
 const { can, fetchPermissions } = usePermissions()
@@ -398,6 +431,8 @@ const shareExpiry = ref('24h')
 const shareLoading = ref(false)
 const copiedLinkId = ref<number | null>(null)
 const contextMenu = ref<{ show: boolean; file: any; x: number; y: number }>({ show: false, file: null, x: 0, y: 0 })
+const selectMode = ref(false)
+const selectedFiles = ref<Set<number>>(new Set())
 const viewModes = [
   { id: 'details', label: 'Details', icon: LayoutGrid },
   { id: 'large', label: 'Large icons', icon: LayoutGrid },
@@ -645,6 +680,39 @@ const pendingFiles = new Set<string>()
 const uploadingCount = computed(() => uploads.value.filter(u => u.status === 'uploading' || u.status === 'queued').length)
 const completedCount = computed(() => uploads.value.filter(u => u.status === 'done').length)
 const totalCount = computed(() => uploads.value.length)
+
+// Select mode
+const allSelected = computed(() => files.value.length > 0 && selectedFiles.value.size === files.value.length)
+const toggleSelectMode = () => {
+  selectMode.value = !selectMode.value
+  if (!selectMode.value) selectedFiles.value.clear()
+}
+const toggleFileSelect = (fileId: number) => {
+  if (selectedFiles.value.has(fileId)) {
+    selectedFiles.value.delete(fileId)
+  } else {
+    selectedFiles.value.add(fileId)
+  }
+  selectedFiles.value = new Set(selectedFiles.value)
+}
+const selectAll = () => {
+  if (allSelected.value) {
+    selectedFiles.value.clear()
+  } else {
+    selectedFiles.value = new Set(files.value.map(f => f.id))
+  }
+}
+const deleteSelected = async () => {
+  const ids = Array.from(selectedFiles.value)
+  if (!ids.length) return
+  if (!confirm(`Delete ${ids.length} item${ids.length > 1 ? 's' : ''}?`)) return
+  for (const id of ids) {
+    try { await apiFetch(`/api/files/${id}`, { method: 'DELETE' }) } catch {}
+  }
+  selectedFiles.value.clear()
+  selectMode.value = false
+  loadFiles()
+}
 
 const formatSize = (bytes: number) => {
   if (!bytes) return '0 B'
@@ -1162,6 +1230,108 @@ onMounted(async () => {
   background-color: var(--color-surface-1);
 }
 
+.file-row.file-selected {
+  background-color: color-mix(in srgb, var(--color-brand-500) 10%, transparent);
+}
+
+.file-col-check {
+  flex-shrink: 0;
+  width: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.select-icon {
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color 0.1s ease;
+}
+
+.select-icon:hover {
+  color: var(--color-brand-500);
+}
+
+.file-card-check {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 2;
+  cursor: pointer;
+  background: var(--color-surface-0);
+  border-radius: 0.25rem;
+  padding: 0.125rem;
+}
+
+.file-card-check-sm {
+  position: absolute;
+  top: 0.25rem;
+  left: 0.25rem;
+  z-index: 2;
+  cursor: pointer;
+  background: var(--color-surface-0);
+  border-radius: 0.25rem;
+  padding: 0.0625rem;
+}
+
+.file-card-large.file-selected,
+.file-card-medium.file-selected,
+.file-card-small.file-selected {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: -2px;
+}
+
+.select-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  background: color-mix(in srgb, var(--color-brand-500) 8%, var(--color-surface-0));
+  border: 1px solid color-mix(in srgb, var(--color-brand-500) 20%, transparent);
+  border-radius: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.select-count {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-brand-500);
+}
+
+.select-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-sm {
+  padding: 0.25rem 0.625rem;
+  font-size: 0.75rem;
+  height: 1.75rem;
+}
+
+.btn-danger {
+  background: var(--color-danger);
+  color: white;
+  border: none;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.btn-danger:hover {
+  opacity: 0.9;
+}
+
+.btn-active {
+  background: color-mix(in srgb, var(--color-brand-500) 15%, transparent);
+  color: var(--color-brand-500);
+  border-color: var(--color-brand-500);
+}
+
 .file-col-name {
   flex: 1;
   min-width: 0;
@@ -1433,6 +1603,7 @@ onMounted(async () => {
   border-radius: 0.5rem;
   cursor: default;
   transition: background-color 0.1s ease;
+  position: relative;
 }
 
 .file-card-large:hover {
@@ -1532,6 +1703,7 @@ onMounted(async () => {
   border-radius: 0.5rem;
   cursor: default;
   transition: background-color 0.1s ease;
+  position: relative;
 }
 
 .file-card-medium:hover {
@@ -1586,6 +1758,7 @@ onMounted(async () => {
   cursor: pointer;
   transition: background-color 0.1s ease;
   min-width: 120px;
+  position: relative;
 }
 
 .file-card-small:hover {
