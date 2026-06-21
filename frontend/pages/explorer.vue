@@ -92,104 +92,58 @@
                 <span class="file-col-actions"></span>
               </div>
               <div class="file-list">
-                <div v-for="file in files" :key="file.id" class="file-row" :class="{ 'file-selected': isSelected(file.id) }" @click="selectMode ? toggleFileSelect(file.id) : (isImage(file) ? openLightbox(file) : (file.is_folder ? navigateToFolder(file.id) : null))">
-                  <div v-if="selectMode" class="file-col-check" @click.stop="toggleFileSelect(file.id)">
-                    <component :is="isSelected(file.id) ? CheckSquare : Square" :size="16" class="select-icon" />
-                  </div>
-                  <div class="file-col-name">
-                    <div class="file-icon" :class="file.is_folder ? 'file-icon-folder' : `file-type-${isImage(file) ? 'image' : 'file'}`">
-                      <template v-if="file.is_folder"><Folder :size="16" /></template>
-                      <template v-else-if="isImage(file)"><img :src="thumbnailUrl(file.id)" class="file-thumb-xs" @error="(e: any) => e.target.style.display='none'" crossorigin="anonymous" /></template>
-                      <template v-else><File :size="16" /></template>
-                    </div>
-                    <div class="file-name-block">
-                      <span class="file-name" :class="{ 'folder-name': file.is_folder }">{{ file.name }}</span>
-                      <span class="file-date">{{ formatDate(file.updated_at) }}</span>
-                    </div>
-                  </div>
-                  <span class="file-col-size">{{ file.is_folder ? '--' : formatSize(file.size_total) }}</span>
-                  <div class="file-col-actions">
-                    <button class="icon-btn" @click.stop="openContextMenu($event, file)" title="More">
-                      <MoreVertical :size="14" />
-                    </button>
-                  </div>
-                </div>
+                <FileRowDetails
+                  v-for="file in files"
+                  :key="file.id"
+                  :file="file"
+                  :selected="isSelected(file.id)"
+                  :select-mode="selectMode"
+                  @toggle-select="toggleFileSelect"
+                  @open="handleFileOpen"
+                  @context-menu="(e: any, f: any) => openContextMenu(e, f)"
+                />
               </div>
             </div>
 
             <!-- Large icons -->
             <div v-else-if="viewMode === 'large'" class="file-grid-large">
-              <div v-for="file in files" :key="file.id" class="file-card-large" :class="{ 'file-selected': isSelected(file.id) }" @dblclick="selectMode ? toggleFileSelect(file.id) : (file.is_folder ? navigateToFolder(file.id) : null)">
-                <div v-if="selectMode" class="file-card-check" @click.stop="toggleFileSelect(file.id)">
-                  <component :is="isSelected(file.id) ? CheckSquare : Square" :size="16" class="select-icon" />
-                </div>
-                <div class="file-card-icon-large" :class="file.is_folder ? 'file-icon-folder' : `file-type-${isImage(file) ? 'image' : isVideo(file) ? 'video' : isAudio(file) ? 'audio' : isDoc(file) ? 'doc' : 'file'}`" @click="selectMode ? toggleFileSelect(file.id) : (!file.is_folder && isImage(file) ? openLightbox(file) : null)">
-                  <template v-if="file.is_folder">
-                    <Folder :size="48" />
-                  </template>
-                  <template v-else-if="isImage(file)">
-                    <img :src="thumbnailUrl(file.id)" class="file-thumb" @error="(e: any) => e.target.style.display='none'" crossorigin="anonymous" />
-                  </template>
-                  <template v-else>
-                    <Film v-if="isVideo(file)" :size="48" />
-                    <Music v-else-if="isAudio(file)" :size="48" />
-                    <FileText v-else-if="isDoc(file)" :size="48" />
-                    <File v-else :size="48" />
-                  </template>
-                  <button class="card-menu-btn" @click.stop="openContextMenu($event, file)" title="More">
-                    <MoreVertical :size="14" />
-                  </button>
-                </div>
-                <span class="file-card-name" :class="{ 'folder-name': file.is_folder }" @click="file.is_folder ? navigateToFolder(file.id) : null">{{ file.name }}</span>
-              </div>
+              <FileCardLarge
+                v-for="file in files"
+                :key="file.id"
+                :file="file"
+                :selected="isSelected(file.id)"
+                :select-mode="selectMode"
+                @toggle-select="toggleFileSelect"
+                @open="handleFileOpen"
+                @context-menu="(e: any, f: any) => openContextMenu(e, f)"
+              />
             </div>
 
             <!-- Medium icons -->
             <div v-else-if="viewMode === 'medium'" class="file-grid-medium">
-              <div v-for="file in files" :key="file.id" class="file-card-medium" :class="{ 'file-selected': isSelected(file.id) }" @dblclick="selectMode ? toggleFileSelect(file.id) : (file.is_folder ? navigateToFolder(file.id) : null)">
-                <div v-if="selectMode" class="file-card-check" @click.stop="toggleFileSelect(file.id)">
-                  <component :is="isSelected(file.id) ? CheckSquare : Square" :size="14" class="select-icon" />
-                </div>
-                <div class="file-card-icon-medium" :class="file.is_folder ? 'file-icon-folder' : `file-type-${isImage(file) ? 'image' : isVideo(file) ? 'video' : isAudio(file) ? 'audio' : isDoc(file) ? 'doc' : 'file'}`" @click="selectMode ? toggleFileSelect(file.id) : (!file.is_folder && isImage(file) ? openLightbox(file) : null)">
-                  <template v-if="file.is_folder">
-                    <Folder :size="32" />
-                  </template>
-                  <template v-else-if="isImage(file)">
-                    <img :src="thumbnailUrl(file.id)" class="file-thumb-sm" @error="(e: any) => e.target.style.display='none'" crossorigin="anonymous" />
-                  </template>
-                  <template v-else>
-                    <Film v-if="isVideo(file)" :size="32" />
-                    <Music v-else-if="isAudio(file)" :size="32" />
-                    <FileText v-else-if="isDoc(file)" :size="32" />
-                    <File v-else :size="32" />
-                  </template>
-                  <button class="card-menu-btn" @click.stop="openContextMenu($event, file)" title="More">
-                    <MoreVertical :size="12" />
-                  </button>
-                </div>
-                <span class="file-card-name-sm" :class="{ 'folder-name': file.is_folder }" @click="file.is_folder ? navigateToFolder(file.id) : null">{{ file.name }}</span>
-              </div>
+              <FileCardMedium
+                v-for="file in files"
+                :key="file.id"
+                :file="file"
+                :selected="isSelected(file.id)"
+                :select-mode="selectMode"
+                @toggle-select="toggleFileSelect"
+                @open="handleFileOpen"
+                @context-menu="(e: any, f: any) => openContextMenu(e, f)"
+              />
             </div>
 
             <!-- Small icons -->
             <div v-else-if="viewMode === 'small'" class="file-grid-small">
-              <div v-for="file in files" :key="file.id" class="file-card-small" :class="{ 'file-selected': isSelected(file.id) }" @click="selectMode ? toggleFileSelect(file.id) : (isImage(file) ? openLightbox(file) : (file.is_folder ? navigateToFolder(file.id) : null))">
-                <div v-if="selectMode" class="file-card-check-sm" @click.stop="toggleFileSelect(file.id)">
-                  <component :is="isSelected(file.id) ? CheckSquare : Square" :size="12" class="select-icon" />
-                </div>
-                <div class="file-card-icon-sm" :class="file.is_folder ? 'file-icon-folder' : `file-type-${isImage(file) ? 'image' : 'file'}`">
-                  <template v-if="file.is_folder">
-                    <Folder :size="14" />
-                  </template>
-                  <template v-else-if="isImage(file)">
-                    <img :src="thumbnailUrl(file.id)" class="file-thumb-sm" @error="(e: any) => e.target.style.display='none'" crossorigin="anonymous" />
-                  </template>
-                  <template v-else>
-                    <File :size="14" />
-                  </template>
-                </div>
-                <span class="file-card-name-sm" :class="{ 'folder-name': file.is_folder }">{{ file.name }}</span>
-              </div>
+              <FileCardSmall
+                v-for="file in files"
+                :key="file.id"
+                :file="file"
+                :selected="isSelected(file.id)"
+                :select-mode="selectMode"
+                @toggle-select="toggleFileSelect"
+                @open="handleFileOpen"
+              />
             </div>
           </div>
         </template>
@@ -401,7 +355,7 @@
 </template>
 
 <script setup lang="ts">
-import { FolderOpen, FolderPlus, Upload, Folder, File, Trash2, Download, ChevronRight, Home, Loader2, X, LayoutGrid, Grip, Image, Film, Music, FileText, Minus, Plus, Search, Share2, Copy, Check, MoreVertical, Square, CheckSquare } from 'lucide-vue-next'
+import { FolderOpen, FolderPlus, Upload, File, Trash2, Download, ChevronRight, Home, Loader2, X, LayoutGrid, Grip, Image, Minus, Plus, Search, Share2, Copy, Check, MoreVertical, Square, CheckSquare } from 'lucide-vue-next'
 
 const { apiFetch } = useApi()
 const { can, fetchPermissions } = usePermissions()
@@ -689,11 +643,14 @@ const totalCount = computed(() => uploads.value.length)
 
 // Select mode
 const allSelected = computed(() => files.value.length > 0 && files.value.every(f => selectedFiles[f.id]))
+const clearSelection = () => {
+  for (const key of Object.keys(selectedFiles)) {
+    delete selectedFiles[key as any]
+  }
+}
 const toggleSelectMode = () => {
   selectMode.value = !selectMode.value
-  if (!selectMode.value) {
-    for (const key in selectedFiles) delete selectedFiles[key as any]
-  }
+  if (!selectMode.value) clearSelection()
 }
 const toggleFileSelect = (fileId: number) => {
   if (selectedFiles[fileId]) {
@@ -704,7 +661,7 @@ const toggleFileSelect = (fileId: number) => {
 }
 const selectAll = () => {
   if (allSelected.value) {
-    for (const key in selectedFiles) delete selectedFiles[key as any]
+    clearSelection()
   } else {
     for (const f of files.value) selectedFiles[f.id] = true
   }
@@ -716,9 +673,16 @@ const deleteSelected = async () => {
   for (const id of ids) {
     try { await apiFetch(`/api/files/${id}`, { method: 'DELETE' }) } catch {}
   }
-  for (const key in selectedFiles) delete selectedFiles[key as any]
+  clearSelection()
   selectMode.value = false
   loadFiles()
+}
+const handleFileOpen = (file: any) => {
+  if (file.is_folder) {
+    navigateToFolder(file.id)
+  } else if (isImage(file)) {
+    openLightbox(file)
+  }
 }
 
 const formatSize = (bytes: number) => {
