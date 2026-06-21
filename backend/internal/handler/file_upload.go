@@ -106,6 +106,8 @@ type driveAssignment struct {
 
 func (h *FileHandler) processUpload(userID, fileID int64, filename, tmpPath string, totalSize int64) {
 	defer os.Remove(tmpPath)
+	acquireFileSlot()
+	defer releaseFileSlot()
 
 	chunkSizeBytes := getChunkSizeMB() * 1024 * 1024
 	numChunks := int((totalSize + chunkSizeBytes - 1) / chunkSizeBytes)

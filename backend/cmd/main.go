@@ -22,8 +22,8 @@ func main() {
 	repository.InitDB()
 	redispkg.InitRedis()
 
-	// Global concurrency limiter — max 10 concurrent chunk operations (uploads/downloads)
-	handler.InitChunkSemaphore(10)
+	// Concurrency limits — 3 simultaneous files, 4 chunks per file
+	handler.InitConcurrency(3, 4)
 
 	r := gin.Default()
 

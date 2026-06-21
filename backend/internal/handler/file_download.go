@@ -103,6 +103,8 @@ func (h *FileHandler) DownloadByName(c *gin.Context) {
 
 	// action=download → serve the assembled file directly (no async session)
 	if action == "download" {
+		acquireFileSlot()
+		defer releaseFileSlot()
 		sort.Slice(chunks, func(i, j int) bool {
 			return chunks[i].Index < chunks[j].Index
 		})
@@ -276,6 +278,9 @@ func (h *FileHandler) StartDownload(c *gin.Context) {
 }
 
 func (h *FileHandler) processDownload(sess *downloadSession, chunks []downloadChunkInfo) {
+	acquireFileSlot()
+	defer releaseFileSlot()
+
 	type chunkResult struct {
 		Index int
 		Data  []byte
@@ -465,6 +470,9 @@ func (h *FileHandler) DownloadProgress(c *gin.Context) {
 }
 
 func (h *FileHandler) DownloadFile(c *gin.Context) {
+	acquireFileSlot()
+	defer releaseFileSlot()
+
 	userID := c.GetInt64("user_id")
 	id := c.Param("id")
 
