@@ -295,19 +295,19 @@
                   <span v-else-if="upload.status === 'done'" style="color: var(--color-success);">Done</span>
                   <span v-else-if="upload.status === 'error'" style="color: var(--color-danger);">Failed</span>
                   <span v-else-if="upload.status === 'cancelled'" style="color: var(--color-text-muted);">Cancelled</span>
-                  <span v-else-if="upload.status === 'queued'" style="color: var(--color-text-muted);">Waiting...</span>
+                  <span v-else-if="upload.status === 'queued'" style="color: var(--color-text-muted);">Queued</span>
                 </div>
                 <div class="upload-item-progress">
                   <div class="upload-item-progress-track">
                     <div
                       class="upload-item-progress-fill"
-                      :class="{ 'fill-error': upload.status === 'error' || upload.status === 'cancelled', 'fill-done': upload.status === 'done' }"
-                      :style="{ width: upload.status === 'done' || upload.status === 'error' || upload.status === 'cancelled' ? '100%' : upload.status === 'uploading' ? '100%' : '0%' }"
+                      :class="{ 'fill-error': upload.status === 'error', 'fill-done': upload.status === 'done' }"
+                      :style="{ width: upload.status === 'done' || upload.status === 'error' ? '100%' : upload.status === 'uploading' ? '100%' : '0%' }"
                     ></div>
                   </div>
                 </div>
               </div>
-              <button v-if="upload.status === 'uploading'" class="cancel-btn" @click="cancelUpload(upload)" title="Cancel">
+              <button v-if="upload.status === 'uploading' || upload.status === 'queued'" class="cancel-btn" @click="cancelUpload(upload)" title="Cancel">
                 <X :size="14" />
               </button>
             </div>
@@ -632,6 +632,10 @@ interface UploadItem {
   id: string
   name: string
   status: 'queued' | 'uploading' | 'done' | 'error'
+  _xhr: XMLHttpRequest | null
+  _aborted: boolean
+  _pollTimer: ReturnType<typeof setTimeout> | null
+  _fileId: number | null
 }
 
 const uploads = ref<UploadItem[]>([])
@@ -863,7 +867,7 @@ const uploadFile = (file: File) => {
   uploads.value.push({
     id,
     name: file.name,
-    status: 'uploading',
+    status: 'queued',
     _xhr: null as XMLHttpRequest | null,
     _aborted: false,
     _pollTimer: null as ReturnType<typeof setTimeout> | null,

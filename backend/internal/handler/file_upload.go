@@ -69,7 +69,7 @@ func (h *FileHandler) UploadFile(c *gin.Context) {
 	}
 
 	result, err := h.DB.Exec(
-		"INSERT INTO files (user_id, name, mime_type, size_total, status, parent_id, is_folder) VALUES (?, ?, ?, ?, 'uploading', ?, FALSE)",
+		"INSERT INTO files (user_id, name, mime_type, size_total, status, parent_id, is_folder) VALUES (?, ?, ?, ?, 'queued', ?, FALSE)",
 		userID, header.Filename, header.Header.Get("Content-Type"), written, parentID,
 	)
 	if err != nil {
@@ -108,6 +108,16 @@ func (h *FileHandler) processUpload(userID, fileID int64, filename, tmpPath stri
 	defer os.Remove(tmpPath)
 	acquireFileSlot()
 	defer releaseFileSlot()
+
+	// Check if file was cancelled while queued
+	var exists int
+	h.DB.QueryRow("SELECT COUNT(*) FROM files WHERE id = ? AND status = 'queued'", fileID).Scan(&exists)
+	if exists == 0 {
+		return // file was deleted or already processing
+	}
+
+	// Transition from queued → uploading now that we have a slot
+	h.DB.Exec("UPDATE files SET status = 'uploading' WHERE id = ?", fileID)
 
 	chunkSizeBytes := getChunkSizeMB() * 1024 * 1024
 	numChunks := int((totalSize + chunkSizeBytes - 1) / chunkSizeBytes)
